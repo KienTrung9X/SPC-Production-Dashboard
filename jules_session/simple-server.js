@@ -13,39 +13,71 @@ app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Route chính
+// =================================================================
+// == Page Routes
+// =================================================================
 app.get('/', (req, res) => {
-    res.render('index');
+    res.render('dashboard');
 });
 
-// Connection string cho ODBC
-const connStr = `DRIVER={IBM i Access ODBC Driver};SYSTEM=${config.hostname};UID=${config.uid};PWD=${config.pwd};DBQ=WAVEDLIB;`;
+app.get('/data', (req, res) => {
+    res.render('data');
+});
 
-// API để chạy TRZ50 query với parameters
+// =================================================================
+// == API Routes for Dashboard
+// =================================================================
+app.get('/api/dashboard/stats', async (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const params = [
+            startDate.replace(/-/g, ''),
+            endDate.replace(/-/g, '')
+        ];
+        const result = await executeQuery(prodReportQueries.getMonthlyStats, params);
+        res.json(result[0] || {});
+    } catch (error) {
+        console.error('Lỗi Dashboard Stats:', error);
+        res.status(500).json({ error: `Lỗi khi lấy dữ liệu thống kê: ${error.message}` });
+    }
+});
+
+app.get('/api/dashboard/events', async (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const params = [
+            startDate.replace(/-/g, ''),
+            endDate.replace(/-/g, '')
+        ];
+        const results = await executeQuery(prodReportQueries.getCalendarEvents, params);
+        
+        const events = results.map(row => ({
+            title: row.TITLE,
+            start: `${String(row.START_DATE).substring(0, 4)}-${String(row.START_DATE).substring(4, 6)}-${String(row.START_DATE).substring(6, 8)}`
+        }));
+        
+        res.json(events);
+    } catch (error) {
+        console.error('Lỗi Calendar Events:', error);
+        res.status(500).json({ error: `Lỗi khi lấy dữ liệu lịch: ${error.message}` });
+    }
+});
+
+// =================================================================
+// == API Routes for Data Table Page
+// =================================================================
+
+// API để chạy TRZ50 query với parameters an toàn
 app.get('/api/trz50', async (req, res) => {
     try {
         const { startDate, endDate, lineCode, rowLimit } = req.query;
-        
-        console.log('TRZ50 Parameters:', { startDate, endDate, lineCode, rowLimit });
-        
-        // Tạo parameters
-        const params = {
-            startDate: startDate ? startDate.replace(/-/g, '') : config.startDate,
-            endDate: endDate ? endDate.replace(/-/g, '') : config.endDate,
-            lineCode: lineCode || config.lineCode,
-            rowLimit: rowLimit || config.rowLimit
-        };
-        
-        // Tạo SQL query
-        const sqlQuery = binQueries.trz50(params);
-        console.log('Executing TRZ50 query...');
-        
-        // Kết nối và chạy query
-        const connection = await odbc.connect(connStr);
-        const result = await connection.query(sqlQuery);
-        await connection.close();
-        
-        console.log(`TRZ50 completed: ${result.length} records`);
+        const params = [
+            lineCode || config.lineCode,
+            startDate ? startDate.replace(/-/g, '') : config.startDate,
+            endDate ? endDate.replace(/-/g, '') : config.endDate,
+            parseInt(rowLimit || config.rowLimit, 10)
+        ];
+        const result = await executeQuery(binQueries.trz50, params);
         res.json(result);
     } catch (error) {
         console.error('Lỗi TRZ50:', error);
@@ -53,34 +85,40 @@ app.get('/api/trz50', async (req, res) => {
     }
 });
 
-// API để chạy Production Report query với parameters
+// API để chỉ lấy TRZ50 updates an toàn
+app.get('/api/trz50/updates', async (req, res) => {
+    try {
+        const { lineCode, lastUpdateDate, lastUpdateTime } = req.query;
+        const params = [
+            lineCode || config.lineCode,
+            parseInt(lastUpdateDate, 10),
+            parseInt(lastUpdateDate, 10),
+            parseInt(lastUpdateTime, 10)
+        ];
+        const result = await executeQuery(binQueries.trz50Updates, params);
+        res.json(result);
+    } catch (error) {
+        console.error('Lỗi TRZ50 Updates:', error);
+        res.status(500).json({ error: `Lỗi khi chạy TRZ50 updates query: ${error.message}` });
+    }
+});
+
+// API để chạy Production Report query với parameters an toàn
 app.get('/api/production', async (req, res) => {
     try {
         const { startDate, endDate, lineCode, rowLimit } = req.query;
+        const formattedStartDate = startDate ? startDate.replace(/-/g, '') : config.startDate;
+        const formattedEndDate = endDate ? endDate.replace(/-/g, '') : config.endDate;
+        const currentLineCode = lineCode || config.lineCode;
+        const currentRowLimit = parseInt(rowLimit || config.rowLimit, 10);
         
-        console.log('Production Parameters:', { startDate, endDate, lineCode, rowLimit });
-        
-        // Tạo parameters
-        const params = {
-            startDate: startDate ? startDate.replace(/-/g, '') : config.startDate,
-            endDate: endDate ? endDate.replace(/-/g, '') : config.endDate,
-            lineCode: lineCode || config.lineCode,
-            rowLimit: rowLimit || config.rowLimit
-        };
-        
-        // Tạo SQL query
-        const sqlQuery = typeof prodReportQueries.productionReportComplex === 'function' 
-            ? prodReportQueries.productionReportComplex(params)
-            : prodReportQueries.productionReportComplex;
-            
-        console.log('Executing Production query...');
-        
-        // Kết nối và chạy query
-        const connection = await odbc.connect(connStr);
-        const result = await connection.query(sqlQuery);
-        await connection.close();
-        
-        console.log(`Production completed: ${result.length} records`);
+        const params = [
+            formattedStartDate, formattedEndDate, currentLineCode,
+            formattedStartDate, formattedEndDate, currentLineCode,
+            formattedStartDate, formattedEndDate, currentLineCode,
+            currentRowLimit
+        ];
+        const result = await executeQuery(prodReportQueries.productionReportComplex, params);
         res.json(result);
     } catch (error) {
         console.error('Lỗi Production:', error);
@@ -88,32 +126,95 @@ app.get('/api/production', async (req, res) => {
     }
 });
 
-// API export CSV
-app.get('/api/export/:type', (req, res) => {
-    const { type } = req.params;
-    const outputDir = path.join(__dirname, '../output');
-    
-    let pattern;
-    if (type === 'trz50') {
-        pattern = 'trz50_';
-    } else if (type === 'production') {
-        pattern = 'productionReportComplex_';
-    } else {
-        return res.status(400).json({ error: 'Invalid type' });
+// API để chỉ lấy Production Report updates an toàn
+app.get('/api/production/updates', async (req, res) => {
+    try {
+        const { lineCode, lastUpdateDate, lastUpdateTime } = req.query;
+        const params = [
+            lineCode || config.lineCode,
+            lineCode || config.lineCode,
+            lineCode || config.lineCode,
+            parseInt(lastUpdateDate, 10),
+            parseInt(lastUpdateDate, 10),
+            parseInt(lastUpdateTime, 10)
+        ];
+        const result = await executeQuery(prodReportQueries.productionReportUpdates, params);
+        res.json(result);
+    } catch (error) {
+        console.error('Lỗi Production Updates:', error);
+        res.status(500).json({ error: `Lỗi khi chạy Production updates query: ${error.message}` });
     }
-    
-    const files = fs.readdirSync(outputDir)
-        .filter(f => f.startsWith(pattern) && f.endsWith('.csv'))
-        .sort()
-        .reverse();
-        
-    if (files.length === 0) {
-        return res.status(404).json({ error: 'No data file found' });
-    }
-    
-    const csvPath = path.join(outputDir, files[0]);
-    res.download(csvPath);
 });
+
+// API để xuất dữ liệu ra CSV
+app.get('/api/export/:type', async (req, res) => {
+    try {
+        const { type } = req.params;
+        const { startDate, endDate, lineCode, rowLimit } = req.query;
+        let data;
+        let query;
+        let params;
+
+        if (type === 'trz50') {
+            query = binQueries.trz50;
+            params = [
+                lineCode || config.lineCode,
+                startDate ? startDate.replace(/-/g, '') : config.startDate,
+                endDate ? endDate.replace(/-/g, '') : config.endDate,
+                parseInt(rowLimit || config.rowLimit, 10)
+            ];
+        } else if (type === 'production') {
+            query = prodReportQueries.productionReportComplex;
+            const formattedStartDate = startDate ? startDate.replace(/-/g, '') : config.startDate;
+            const formattedEndDate = endDate ? endDate.replace(/-/g, '') : config.endDate;
+            const currentLineCode = lineCode || config.lineCode;
+            const currentRowLimit = parseInt(rowLimit || config.rowLimit, 10);
+            params = [
+                formattedStartDate, formattedEndDate, currentLineCode,
+                formattedStartDate, formattedEndDate, currentLineCode,
+                formattedStartDate, formattedEndDate, currentLineCode,
+                currentRowLimit
+            ];
+        } else {
+            return res.status(400).send('Loại export không hợp lệ');
+        }
+
+        data = await executeQuery(query, params);
+
+        if (data.length === 0) {
+            return res.status(404).send('Không có dữ liệu để xuất');
+        }
+
+        const headers = Object.keys(data[0]);
+        let csv = headers.join(',') + '\\n';
+        data.forEach(row => {
+            csv += headers.map(header => JSON.stringify(row[header])).join(',') + '\\n';
+        });
+
+        res.header('Content-Type', 'text/csv');
+        res.attachment(`${type}_export.csv`);
+        res.send(csv);
+
+    } catch (error) {
+        console.error(`Lỗi khi export ${req.params.type}:`, error);
+        res.status(500).send(`Lỗi server khi đang xử lý export: ${error.message}`);
+    }
+});
+
+// =================================================================
+// == Helper Functions and Server Start
+// =================================================================
+
+const connStr = `DRIVER={IBM i Access ODBC Driver};SYSTEM=${config.hostname};UID=${config.uid};PWD=${config.pwd};DBQ=WAVEDLIB;`;
+
+async function executeQuery(sql, params) {
+    const connection = await odbc.connect(connStr);
+    try {
+        return await connection.query(sql, params);
+    } finally {
+        await connection.close();
+    }
+}
 
 app.listen(port, () => {
     console.log(`Server đang chạy tại http://localhost:${port}`);

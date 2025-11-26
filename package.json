@@ -8,6 +8,7 @@
     "all": "node run-all-queries.js"
   },
   "dependencies": {
+    "express": "^5.1.0",
     "ibm_db": "^3.3.4",
     "odbc": "^2.4.9"
   }

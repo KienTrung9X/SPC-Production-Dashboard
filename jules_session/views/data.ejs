@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DB2 Production Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #3b82f6; --primary-dark: #2563eb; --secondary-color: #64748b;
+            --success-color: #10b981; --warning-color: #f59e0b; --danger-color: #ef4444;
+            --background-color: #f8fafc; --panel-background: #ffffff; --text-color: #334155;
+            --text-light: #64748b; --header-color: #1e293b; --border-color: #e2e8f0;
+            --hover-color: #f1f5f9; --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        * { box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; margin: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; color: var(--text-color); }
+        .header { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); padding: 1.5rem 2rem; border-bottom: 1px solid var(--border-color); box-shadow: var(--shadow); position: sticky; top: 0; z-index: 100; }
+        .header-content { display: flex; justify-content: space-between; align-items: center; max-width: 1400px; margin: 0 auto; }
+        h1 { font-size: 1.875rem; font-weight: 700; color: var(--header-color); margin: 0; display: flex; align-items: center; gap: 0.75rem; }
+        .header-stats { display: flex; gap: 1.5rem; align-items: center; }
+        .stat-item { text-align: center; }
+        .stat-number { font-size: 1.5rem; font-weight: 700; color: var(--primary-color); }
+        .stat-label { font-size: 0.75rem; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.05em; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+        .filters { background: var(--panel-background); border-radius: 1rem; padding: 1.5rem; margin-bottom: 2rem; box-shadow: var(--shadow); border: 1px solid var(--border-color); }
+        .filters-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; align-items: end; }
+        .filter-group { display: flex; flex-direction: column; gap: 0.5rem; }
+        .filter-label { font-size: 0.875rem; font-weight: 500; color: var(--text-color); }
+        .filter-input { padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 0.5rem; font-size: 0.875rem; transition: all 0.2s; }
+        .filter-input:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+        .btn { padding: 0.75rem 1.5rem; border: none; border-radius: 0.5rem; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 0.5rem; }
+        .btn-primary { background: var(--primary-color); color: white; }
+        .btn-primary:hover { background: var(--primary-dark); transform: translateY(-1px); box-shadow: var(--shadow-lg); }
+        .btn-secondary { background: var(--secondary-color); color: white; }
+        .btn-success { background: var(--success-color); color: white; }
+        .panels-grid { display: grid; grid-template-columns: 1fr; gap: 2rem; }
+        .panel { background: var(--panel-background); border-radius: 1rem; box-shadow: var(--shadow); border: 1px solid var(--border-color); overflow: hidden; }
+        .panel-header { display: flex; align-items: center; justify-content: space-between; padding: 1.5rem; border-bottom: 1px solid var(--border-color); background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); }
+        .panel-title { display: flex; align-items: center; gap: 0.75rem; }
+        h2 { font-size: 1.25rem; font-weight: 600; color: var(--header-color); margin: 0; }
+        .panel-icon { width: 2rem; height: 2rem; background: var(--primary-color); border-radius: 0.5rem; display: flex; align-items: center; justify-content: center; color: white; }
+        .panel-actions { display: flex; gap: 0.75rem; }
+        .table-container { overflow-x: auto; max-height: 600px; overflow-y: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 1rem; text-align: left; font-size: 0.875rem; border-bottom: 1px solid var(--border-color); }
+        thead th { color: var(--text-light); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; background: var(--hover-color); position: sticky; top: 0; z-index: 10; }
+        tbody tr:hover { background-color: var(--hover-color); }
+        .no-data { text-align: center; padding: 3rem; color: var(--text-light); }
+        .status-badge { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.25rem 0.75rem; border-radius: 9999px; font-weight: 500; font-size: 0.75rem; }
+        .status-completed { background-color: #dcfce7; color: #166534; }
+        .status-ontime { background-color: #dbeafe; color: #1d4ed8; }
+        .status-delay { background-color: #fee2e2; color: #991b1b; }
+        .spinner { width: 1rem; height: 1rem; border: 2px solid var(--border-color); border-top: 2px solid var(--primary-color); border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        .fade-in { animation: fadeIn 0.5s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+    <nav class="bg-white shadow-md rounded-md mb-4 mx-4 mt-4">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex-shrink-0">
+                    <h1 class="text-xl font-bold">Data Table</h1>
+                </div>
+                <div class="flex items-baseline space-x-4">
+                    <a href="/" class="text-gray-500 hover:bg-gray-200 px-3 py-2 rounded-md text-sm font-medium">Dashboard</a>
+                    <a href="/data" class="text-gray-700 bg-gray-200 px-3 py-2 rounded-md text-sm font-medium">Data Table</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+    <div class="header" style="display:none;">
+        <div class="header-content">
+            <h1><i class="fas fa-chart-line"></i> DB2 Production Dashboard</h1>
+            <div class="header-stats">
+                <div class="stat-item">
+                    <div class="stat-number" id="trz50-count">0</div>
+                    <div class="stat-label">TRZ50 Records</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="production-count">0</div>
+                    <div class="stat-label">Production Records</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <main class="container">
+        <div class="filters">
+            <div class="filters-grid">
+                <div class="filter-group">
+                    <label class="filter-label">Start Date</label>
+                    <input type="date" class="filter-input" id="startDate" value="2025-01-01">
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">End Date</label>
+                    <input type="date" class="filter-input" id="endDate" value="2025-12-31">
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">Line Code</label>
+                    <select class="filter-input" id="lineCode">
+                        <option value="315">315</option><option value="312">312</option>
+                        <option value="311">311</option><option value="310">310</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">Row Limit</label>
+                    <select class="filter-input" id="rowLimit">
+                        <option value="100">100</option><option value="500">500</option>
+                        <option value="1000" selected>1000</option><option value="5000">5000</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <button class="btn btn-primary" id="load-trz50-btn"><i class="fas fa-search"></i> Load TRZ50</button>
+                </div>
+                <div class="filter-group">
+                    <button class="btn btn-secondary" id="load-production-btn"><i class="fas fa-industry"></i> Load Production</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="panels-grid">
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>TRZ50 Data</h2>
+                    <button class="btn btn-success" id="export-trz50-btn"><i class="fas fa-file-csv"></i> Export CSV</button>
+                </div>
+                <div class="table-container">
+                    <table id="trz50-table">
+                        <thead><tr><th>Due Date</th><th>PR No</th><th>Item Code</th><th>Item Name</th><th>Quantity</th><th>Action</th><th>Bin</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                    <div id="trz50-no-data" class="no-data">Click "Load" to fetch data</div>
+                </div>
+            </div>
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>Production Report</h2>
+                    <button class="btn btn-success" id="export-production-btn"><i class="fas fa-file-csv"></i> Export CSV</button>
+                </div>
+                <div class="table-container">
+                    <table id="production-table">
+                        <thead><tr><th>Line</th><th>PR</th><th>Item</th><th>Item Name</th><th>Qty</th><th>Est Date</th><th>Act Date</th><th>Status</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                    <div id="production-no-data" class="no-data">Click "Load" to fetch data</div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+    // =================================================================
+    // == Generic Data Source Manager - Tái cấu trúc cho mở rộng    ==
+    // =================================================================
+    class DataSource {
+        constructor(config) {
+            this.config = config;
+            this.data = [];
+            this.lastTimestamp = null;
+            this.pollingInterval = null;
+            this.isLoading = false;
+
+            this.ui = {
+                tableBody: document.querySelector(`#${config.tableId} tbody`),
+                noDataEl: document.getElementById(config.noDataId),
+                countEl: document.getElementById(config.countId),
+                loadBtn: document.getElementById(config.loadBtnId)
+            };
+        }
+
+        // --- Public Methods ---
+        initialize() {
+            console.log(`Initializing ${this.config.name}...`);
+            const cachedData = localStorage.getItem(this.config.storage.dataKey);
+            const cachedTimestamp = localStorage.getItem(this.config.storage.timestampKey);
+
+            if (cachedData && cachedTimestamp) {
+                this.data = JSON.parse(cachedData);
+                this.lastTimestamp = cachedTimestamp;
+                this.renderTable(this.data);
+                this.checkForUpdates();
+                this.startPolling();
+            } else {
+                this.ui.noDataEl.innerHTML = `<i class="fas fa-inbox"></i><div>Click "Load ${this.config.name}" to fetch data</div>`;
+            }
+
+            this.ui.loadBtn.addEventListener('click', () => this.performInitialLoad());
+        }
+
+        async performInitialLoad() {
+            if (this.isLoading) return;
+            this.setLoadingState(true);
+
+            try {
+                const params = getFilterParams();
+                const url = `${this.config.api.initialLoad}?${params}`;
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const newData = await response.json();
+                this.data = newData;
+                this.renderTable(newData);
+
+                this.updateAndCacheTimestamp(newData);
+                this.startPolling();
+
+            } catch (error) {
+                console.error(`Error during initial load for ${this.config.name}:`, error);
+                this.ui.noDataEl.innerHTML = `<i class="fas fa-exclamation-triangle"></i><div>Error loading data.</div>`;
+            } finally {
+                this.setLoadingState(false);
+            }
+        }
+
+        // --- Private Methods ---
+        async checkForUpdates() {
+            if (!this.lastTimestamp || this.isLoading) return;
+            this.isLoading = true; // Set lock to prevent multiple concurrent updates
+
+            try {
+                const lineCode = document.getElementById('lineCode').value;
+                const url = `${this.config.api.updates}?since=${this.lastTimestamp}&lineCode=${lineCode}`;
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const newRecords = await response.json();
+                if (newRecords.length > 0) {
+                    this.appendRowsToTable(newRecords);
+                    this.data.push(...newRecords);
+                    this.updateAndCacheTimestamp(newRecords);
+                }
+            } catch (error) {
+                console.error(`Error checking for updates for ${this.config.name}:`, error);
+            } finally {
+                this.isLoading = false;
+            }
+        }
+
+        startPolling() {
+            if (this.pollingInterval) clearInterval(this.pollingInterval);
+            this.pollingInterval = setInterval(() => this.checkForUpdates(), 60000); // 1 minute
+        }
+
+        updateAndCacheTimestamp(records) {
+            const latestTimestamp = this.findLatestTimestamp(records);
+            // Chỉ cập nhật nếu tìm thấy timestamp mới hợp lệ
+            if (latestTimestamp && latestTimestamp > new Date(0)) {
+                this.lastTimestamp = latestTimestamp.toISOString();
+                localStorage.setItem(this.config.storage.dataKey, JSON.stringify(this.data));
+                localStorage.setItem(this.config.storage.timestampKey, this.lastTimestamp);
+            }
+        }
+
+        findLatestTimestamp(records) {
+            if (!records || records.length === 0) return null;
+            const timestampKeyDate = this.config.timestampKeys.date;
+            const timestampKeyTime = this.config.timestampKeys.time;
+
+            const initialLatest = this.lastTimestamp ? new Date(this.lastTimestamp) : new Date(0);
+
+            return records.reduce((latest, current) => {
+                const currentDate = parseDbTimestamp(current[timestampKeyDate], current[timestampKeyTime]);
+                return currentDate > latest ? currentDate : latest;
+            }, initialLatest);
+        }
+
+        renderTable(records) {
+            this.ui.tableBody.innerHTML = '';
+            this.ui.countEl.textContent = '0';
+            if (records.length === 0) {
+                this.ui.noDataEl.style.display = 'block';
+                 this.ui.noDataEl.innerHTML = `<i class="fas fa-exclamation-circle"></i><div>No data found</div>`;
+            } else {
+                this.ui.noDataEl.style.display = 'none';
+                this.appendRowsToTable(records);
+            }
+        }
+
+        appendRowsToTable(records) {
+             if (this.ui.tableBody.children.length === 0 && records.length > 0) {
+                this.ui.noDataEl.style.display = 'none';
+            }
+            records.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = this.config.rowRenderer(row);
+                this.ui.tableBody.insertBefore(tr, this.ui.tableBody.firstChild);
+            });
+            this.ui.countEl.textContent = this.ui.tableBody.children.length;
+        }
+
+        setLoadingState(loading) {
+            this.isLoading = loading;
+            this.ui.loadBtn.disabled = loading;
+            this.ui.loadBtn.innerHTML = loading
+                ? `<div class="spinner"></div> Loading...`
+                : `<i class="${this.config.icon}"></i> Load ${this.config.name}`;
+        }
+    }
+
+    // =================================================================
+    // == Configuration for Data Sources - Cấu hình cho các nguồn     ==
+    // =================================================================
+    const trz50Config = {
+        name: 'TRZ50',
+        tableId: 'trz50-table',
+        noDataId: 'trz50-no-data',
+        countId: 'trz50-count',
+        loadBtnId: 'load-trz50-btn',
+        icon: 'fas fa-search',
+        api: {
+            initialLoad: '/api/trz50',
+            updates: '/api/trz50/updates'
+        },
+        storage: {
+            dataKey: 'trz50_cached_data',
+            timestampKey: 'trz50_last_timestamp'
+        },
+        timestampKeys: {
+            date: 'RADURZ',
+            time: 'RADTRZ'
+        },
+        rowRenderer: (row) => `
+            <td>${formatDate(row.RADURZ)} ${formatTime(row.RADTRZ)}</td>
+            <td><strong>${row.PSHNRZ || ''}</strong></td>
+            <td><code>${row.ITMCRZ || ''}</code></td>
+            <td>${row.IT1IA0 || ''}</td>
+            <td><span class="status-badge status-ontime">${row.ALCQRZ || ''}</span></td>
+            <td><span class="status-badge status-completed">${row.MSACRZ || ''}</span></td>
+            <td>${row.BKTNRZ || row.WABCRZ || ''}</td>
+        `
+    };
+
+    const productionConfig = {
+        name: 'Production',
+        tableId: 'production-table',
+        noDataId: 'production-no-data',
+        countId: 'production-count',
+        loadBtnId: 'load-production-btn',
+        icon: 'fas fa-industry',
+        api: {
+            initialLoad: '/api/production',
+            updates: '/api/production/updates'
+        },
+        storage: {
+            dataKey: 'production_cached_data',
+            timestampKey: 'production_last_timestamp'
+        },
+        timestampKeys: {
+            date: 'RUPUQ0', // Dựa trên phân tích SQL
+            time: 'RUPTQ0'
+        },
+        rowRenderer: (row) => {
+            let statusClass = row.DELAY_DAY === 'DELAY' ? 'status-delay' : 'status-ontime';
+            return `
+                <td><strong>${row.LINE || ''}</strong></td>
+                <td><strong>${row.PR || ''}</strong></td>
+                <td><code>${row.ITEM || ''}</code></td>
+                <td>${row.ITEM1 || ''}</td>
+                <td><span class="status-badge status-ontime">${row.QTY || ''}</span></td>
+                <td>${formatDate(row.EST_COM_D)}</td>
+                <td>${formatDate(row.ACT_COM_D)}</td>
+                <td><span class="status-badge ${statusClass}">${row.COM_STATUS || ''}</span></td>
+            `;
+        }
+    };
+
+    // =================================================================
+    // == Initialization and Helper Functions - Khởi tạo và hàm hỗ trợ ==
+    // =================================================================
+    document.addEventListener('DOMContentLoaded', function() {
+        const trz50Source = new DataSource(trz50Config);
+        trz50Source.initialize();
+
+        const productionSource = new DataSource(productionConfig);
+        productionSource.initialize();
+
+        document.getElementById('export-trz50-btn').addEventListener('click', () => {
+            const params = getFilterParams();
+            window.location.href = `/api/export/trz50?${params}`;
+        });
+
+        document.getElementById('export-production-btn').addEventListener('click', () => {
+            const params = getFilterParams();
+            window.location.href = `/api/export/production?${params}`;
+        });
+    });
+
+    function getFilterParams() {
+        const params = new URLSearchParams();
+        params.append('startDate', document.getElementById('startDate').value);
+        params.append('endDate', document.getElementById('endDate').value);
+        params.append('lineCode', document.getElementById('lineCode').value);
+        params.append('rowLimit', document.getElementById('rowLimit').value);
+        return params.toString();
+    }
+
+    function parseDbTimestamp(date, time) {
+        if (!date) return new Date(0);
+        const dateStr = String(date);
+        const timeStr = ('000000' + (time || 0)).slice(-6);
+        const year = dateStr.substring(0, 4);
+        const month = dateStr.substring(4, 6);
+        const day = dateStr.substring(6, 8);
+        const hour = timeStr.substring(0, 2);
+        const minute = timeStr.substring(2, 4);
+        const second = timeStr.substring(4, 6);
+        return new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}`);
+    }
+
+    function formatDate(dateNum) {
+        if (!dateNum) return '';
+        const dateStr = String(dateNum);
+        return `${dateStr.substring(6, 8)}/${dateStr.substring(4, 6)}/${dateStr.substring(0, 4)}`;
+    }
+
+    function formatTime(timeNum) {
+        if (timeNum === undefined || timeNum === null) return '';
+        const timeStr = ('000000' + timeNum).slice(-6);
+        return `${timeStr.substring(0, 2)}:${timeStr.substring(2, 4)}:${timeStr.substring(4, 6)}`;
+    }
+    </script>
+</body>
+</html>

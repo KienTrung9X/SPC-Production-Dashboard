@@ -1,0 +1,60 @@
+body {
+    font-family: sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f4f4f4;
+}
+
+nav {
+    background-color: #333;
+    color: white;
+    padding: 1rem;
+    display: flex;
+    gap: 1rem;
+}
+
+nav a {
+    color: white;
+    text-decoration: none;
+}
+
+#content {
+    padding: 1rem;
+}
+
+.pr-card {
+    background-color: white;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    position: relative;
+}
+
+.pr-card h3 {
+    margin-top: 0;
+}
+
+.status-ok {
+    color: green;
+    font-weight: bold;
+}
+
+.status-delay {
+    color: red;
+    font-weight: bold;
+}
+
+.confirmation-buttons button {
+    margin-right: 0.5rem;
+    padding: 0.5rem 1rem;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.confirmation-buttons button.confirmed {
+    background-color: #d4edda;
+    border-color: #c3e6cb;
+    cursor: not-allowed;
+}

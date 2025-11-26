@@ -21,29 +21,31 @@ app.get('/', (req, res) => {
 // Connection string cho ODBC
 const connStr = `DRIVER={IBM i Access ODBC Driver};SYSTEM=${config.hostname};UID=${config.uid};PWD=${config.pwd};DBQ=WAVEDLIB;`;
 
-// API để chạy TRZ50 query với parameters
+// Hàm helper để chạy query an toàn
+async function executeQuery(sql, params) {
+    const connection = await odbc.connect(connStr);
+    try {
+        const result = await connection.query(sql, params);
+        return result;
+    } finally {
+        await connection.close();
+    }
+}
+
+// API để chạy TRZ50 query với parameters an toàn
 app.get('/api/trz50', async (req, res) => {
     try {
         const { startDate, endDate, lineCode, rowLimit } = req.query;
         
-        console.log('TRZ50 Parameters:', { startDate, endDate, lineCode, rowLimit });
+        const params = [
+            lineCode || config.lineCode,
+            startDate ? startDate.replace(/-/g, '') : config.startDate,
+            endDate ? endDate.replace(/-/g, '') : config.endDate,
+            parseInt(rowLimit || config.rowLimit, 10)
+        ];
         
-        // Tạo parameters
-        const params = {
-            startDate: startDate ? startDate.replace(/-/g, '') : config.startDate,
-            endDate: endDate ? endDate.replace(/-/g, '') : config.endDate,
-            lineCode: lineCode || config.lineCode,
-            rowLimit: rowLimit || config.rowLimit
-        };
-        
-        // Tạo SQL query
-        const sqlQuery = binQueries.trz50(params);
-        console.log('Executing TRZ50 query...');
-        
-        // Kết nối và chạy query
-        const connection = await odbc.connect(connStr);
-        const result = await connection.query(sqlQuery);
-        await connection.close();
+        console.log('Executing TRZ50 query with params:', params);
+        const result = await executeQuery(binQueries.trz50, params);
         
         console.log(`TRZ50 completed: ${result.length} records`);
         res.json(result);
@@ -53,38 +55,86 @@ app.get('/api/trz50', async (req, res) => {
     }
 });
 
-// API để chạy Production Report query với parameters
+// API để chỉ lấy TRZ50 updates an toàn
+app.get('/api/trz50/updates', async (req, res) => {
+    try {
+        const { lineCode, lastUpdateDate, lastUpdateTime } = req.query;
+
+        const params = [
+            lineCode || config.lineCode,
+            parseInt(lastUpdateDate, 10),
+            parseInt(lastUpdateDate, 10),
+            parseInt(lastUpdateTime, 10)
+        ];
+
+        console.log('Executing TRZ50 updates query with params:', params);
+        const result = await executeQuery(binQueries.trz50Updates, params);
+
+        console.log(`TRZ50 updates completed: ${result.length} records`);
+        res.json(result);
+    } catch (error) {
+        console.error('Lỗi TRZ50 Updates:', error);
+        res.status(500).json({ error: `Lỗi khi chạy TRZ50 updates query: ${error.message}` });
+    }
+});
+
+
+// API để chạy Production Report query với parameters an toàn
 app.get('/api/production', async (req, res) => {
     try {
         const { startDate, endDate, lineCode, rowLimit } = req.query;
         
-        console.log('Production Parameters:', { startDate, endDate, lineCode, rowLimit });
+        const formattedStartDate = startDate ? startDate.replace(/-/g, '') : config.startDate;
+        const formattedEndDate = endDate ? endDate.replace(/-/g, '') : config.endDate;
+        const currentLineCode = lineCode || config.lineCode;
+        const currentRowLimit = parseInt(rowLimit || config.rowLimit, 10);
         
-        // Tạo parameters
-        const params = {
-            startDate: startDate ? startDate.replace(/-/g, '') : config.startDate,
-            endDate: endDate ? endDate.replace(/-/g, '') : config.endDate,
-            lineCode: lineCode || config.lineCode,
-            rowLimit: rowLimit || config.rowLimit
-        };
+        const params = [
+            formattedStartDate,
+            formattedEndDate,
+            currentLineCode,
+            formattedStartDate,
+            formattedEndDate,
+            currentLineCode,
+            formattedStartDate,
+            formattedEndDate,
+            currentLineCode,
+            currentRowLimit
+        ];
         
-        // Tạo SQL query
-        const sqlQuery = typeof prodReportQueries.productionReportComplex === 'function' 
-            ? prodReportQueries.productionReportComplex(params)
-            : prodReportQueries.productionReportComplex;
-            
-        console.log('Executing Production query...');
-        
-        // Kết nối và chạy query
-        const connection = await odbc.connect(connStr);
-        const result = await connection.query(sqlQuery);
-        await connection.close();
+        console.log('Executing Production query with params...');
+        const result = await executeQuery(prodReportQueries.productionReportComplex, params);
         
         console.log(`Production completed: ${result.length} records`);
         res.json(result);
     } catch (error) {
         console.error('Lỗi Production:', error);
         res.status(500).json({ error: `Lỗi khi chạy Production query: ${error.message}` });
+    }
+});
+
+// API để chỉ lấy Production Report updates an toàn
+app.get('/api/production/updates', async (req, res) => {
+    try {
+        const { lineCode, lastUpdateDate, lastUpdateTime } = req.query;
+
+        const params = [
+            lineCode || config.lineCode,
+            lineCode || config.lineCode,
+            lineCode || config.lineCode,
+            parseInt(lastUpdateDate, 10),
+            parseInt(lastUpdateDate, 10),
+            parseInt(lastUpdateTime, 10)
+        ];
+
+        console.log('Executing Production updates query with params:', params);
+        const result = await executeQuery(prodReportQueries.productionReportUpdates, params);
+
+        console.log(`Production updates completed: ${result.length} records`);
+        res.json(result);
+    } catch (error) {
+        console.error('Lỗi Production Updates:', error);
+        res.status(500).json({ error: `Lỗi khi chạy Production updates query: ${error.message}` });
     }
 });
 

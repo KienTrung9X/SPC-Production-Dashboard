@@ -1,0 +1,14 @@
+{
+  "name": "db2-connection",
+  "version": "1.0.0",
+  "description": "DB2 Connection with IBM DataSource",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "all": "node run-all-queries.js"
+  },
+  "dependencies": {
+    "ibm_db": "^3.3.4",
+    "odbc": "^2.4.9"
+  }
+}

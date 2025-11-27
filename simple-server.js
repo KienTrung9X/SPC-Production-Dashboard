@@ -118,50 +118,43 @@ app.get('/api/production/updates', async (req, res) => {
     }
 });
 
-// API để xuất dữ liệu ra CSV
-app.get('/api/export/:type', async (req, res) => {
+// API để tải CSV trực tiếp từ SQL
+app.get('/api/download-csv', async (req, res) => {
     try {
-        const { type } = req.params;
-        const { startDate, endDate, lineCode, rowLimit } = req.query;
-        let data;
-        let query;
-        let params;
-
-        if (type === 'production') {
-            query = prodReportQueries.productionReportComplex;
-            const formattedStartDate = startDate ? startDate.replace(/-/g, '') : config.startDate;
-            const formattedEndDate = endDate ? endDate.replace(/-/g, '') : config.endDate;
-            const currentLineCode = lineCode || config.lineCode;
-            const currentRowLimit = parseInt(rowLimit || config.rowLimit, 10);
-            params = [
-                formattedStartDate, formattedEndDate, currentLineCode,
-                formattedStartDate, formattedEndDate, currentLineCode,
-                formattedStartDate, formattedEndDate, currentLineCode,
-                currentRowLimit
-            ];
-        } else {
-            return res.status(400).send('Chỉ hỗ trợ export production');
-        }
-
-        data = await executeQuery(query, params);
-
+        const { startDate, endDate, lineCode } = req.query;
+        const formattedStartDate = startDate ? startDate.replace(/-/g, '') : config.startDate;
+        const formattedEndDate = endDate ? endDate.replace(/-/g, '') : config.endDate;
+        const currentLineCode = lineCode || config.lineCode;
+        
+        const params = [
+            formattedStartDate, formattedEndDate, currentLineCode,
+            formattedStartDate, formattedEndDate, currentLineCode,
+            formattedStartDate, formattedEndDate, currentLineCode,
+            10000000 // Large limit for CSV export
+        ];
+        
+        const data = await executeQuery(prodReportQueries.productionReportComplex, params);
+        
         if (data.length === 0) {
-            return res.status(404).send('Không có dữ liệu để xuất');
+            return res.status(404).send('Không có dữ liệu để tải');
         }
 
         const headers = Object.keys(data[0]);
-        let csv = headers.join(',') + '\\n';
+        let csv = headers.join(',') + '\n';
         data.forEach(row => {
-            csv += headers.map(header => JSON.stringify(row[header])).join(',') + '\\n';
+            csv += headers.map(header => JSON.stringify(row[header] || '')).join(',') + '\n';
         });
 
-        res.header('Content-Type', 'text/csv');
-        res.attachment(`${type}_export.csv`);
+        const timestamp = new Date().toISOString().slice(0,10).replace(/-/g,'') + '_' + 
+                         new Date().toISOString().slice(11,19).replace(/:/g,'');
+        
+        res.header('Content-Type', 'text/csv; charset=utf-8');
+        res.attachment(`production_${timestamp}.csv`);
         res.send(csv);
 
     } catch (error) {
-        console.error(`Lỗi khi export ${req.params.type}:`, error);
-        res.status(500).send(`Lỗi server khi đang xử lý export: ${error.message}`);
+        console.error('Lỗi khi tải CSV:', error);
+        res.status(500).send(`Lỗi server: ${error.message}`);
     }
 });
 

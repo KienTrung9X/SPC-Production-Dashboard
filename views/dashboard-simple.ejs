@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Production Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 20px; }
+        .stat-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; }
+        .stat-number { font-size: 2em; font-weight: bold; color: #2563eb; }
+        .data-section { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .controls { margin-bottom: 20px; }
+        .controls input, .controls button { padding: 8px 12px; margin: 5px; border: 1px solid #ddd; border-radius: 4px; }
+        .controls button { background: #2563eb; color: white; cursor: pointer; }
+        .controls button:hover { background: #1d4ed8; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: bold; }
+        .loading { text-align: center; padding: 20px; color: #666; }
+        .error { color: #dc2626; background: #fef2f2; padding: 10px; border-radius: 4px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Production Dashboard</h1>
+            <p>Real-time production monitoring system</p>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <h3>TRZ50 Records</h3>
+                <div class="stat-number" id="trz50-count">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Production Records</h3>
+                <div class="stat-number" id="production-count">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Last Update</h3>
+                <div class="stat-number" id="last-update">-</div>
+            </div>
+        </div>
+
+        <div class="data-section">
+            <h2>TRZ50 Data</h2>
+            <div class="controls">
+                <button onclick="loadTRZ50()">Load TRZ50</button>
+                <button onclick="loadProduction()">Load Production</button>
+                <button onclick="exportData('trz50')">Export TRZ50 CSV</button>
+                <button onclick="exportData('production')">Export Production CSV</button>
+            </div>
+            <div id="data-container">
+                <div class="loading">Click a button to load data</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function loadTRZ50() {
+            const container = document.getElementById('data-container');
+            container.innerHTML = '<div class="loading">Loading TRZ50 data...</div>';
+            
+            try {
+                const response = await fetch('/api/trz50');
+                const data = await response.json();
+                
+                document.getElementById('trz50-count').textContent = data.length;
+                document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+                
+                if (data.length > 0) {
+                    const headers = Object.keys(data[0]);
+                    let html = '<table><thead><tr>';
+                    headers.forEach(header => html += `<th>${header}</th>`);
+                    html += '</tr></thead><tbody>';
+                    
+                    data.slice(0, 50).forEach(row => {
+                        html += '<tr>';
+                        headers.forEach(header => html += `<td>${row[header] || ''}</td>`);
+                        html += '</tr>';
+                    });
+                    html += '</tbody></table>';
+                    
+                    if (data.length > 50) {
+                        html += `<p>Showing first 50 of ${data.length} records</p>`;
+                    }
+                    
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = '<div class="error">No data found</div>';
+                }
+            } catch (error) {
+                container.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+
+        async function loadProduction() {
+            const container = document.getElementById('data-container');
+            container.innerHTML = '<div class="loading">Loading Production data...</div>';
+            
+            try {
+                const response = await fetch('/api/production');
+                const data = await response.json();
+                
+                document.getElementById('production-count').textContent = data.length;
+                document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+                
+                if (data.length > 0) {
+                    const headers = Object.keys(data[0]);
+                    let html = '<table><thead><tr>';
+                    headers.forEach(header => html += `<th>${header}</th>`);
+                    html += '</tr></thead><tbody>';
+                    
+                    data.slice(0, 50).forEach(row => {
+                        html += '<tr>';
+                        headers.forEach(header => html += `<td>${row[header] || ''}</td>`);
+                        html += '</tr>';
+                    });
+                    html += '</tbody></table>';
+                    
+                    if (data.length > 50) {
+                        html += `<p>Showing first 50 of ${data.length} records</p>`;
+                    }
+                    
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = '<div class="error">No data found</div>';
+                }
+            } catch (error) {
+                container.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+
+        function exportData(type) {
+            window.open(`/api/export/${type}`, '_blank');
+        }
+
+        // Auto-load TRZ50 on page load
+        window.onload = () => loadTRZ50();
+    </script>
+</body>
+</html>

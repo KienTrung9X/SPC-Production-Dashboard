@@ -12,6 +12,7 @@ const port = process.env.PORT || 3001;
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.json());
 
 // =================================================================
 // == Page Routes
@@ -33,32 +34,193 @@ app.get('/test', (req, res) => {
 // =================================================================
 app.get('/api/dashboard/stats', async (req, res) => {
     try {
-        const { startDate, endDate } = req.query;
-        const params = [
-            startDate.replace(/-/g, ''),
-            endDate.replace(/-/g, '')
-        ];
-        const result = await executeQuery(prodReportQueries.getMonthlyStats, params);
-        res.json(result[0] || {});
+        const { year, month } = req.query;
+        const startDate = `${year}${month.padStart(2, '0')}01`;
+        const endDate = `${year}${month.padStart(2, '0')}31`;
+        
+        const statsQuery = `
+            SELECT 
+                COUNT(*) AS TOTAL_PRS,
+                COUNT(CASE WHEN A.PCPU9D IS NOT NULL AND A.PCPU9D > A.EPFU9D THEN 1 END) AS DELAYED_PRS,
+                COUNT(CASE WHEN (A.PCPU9D IS NULL OR A.PCPU9D = 0) THEN 1 END) AS INCOMPLETE_PRS,
+                SUM(A.PSCQ9D) AS TOTAL_QTY,
+                SUM(COALESCE(A.PCPQ9D, 0)) AS TOTAL_COMP
+            FROM (
+                SELECT DISTINCT A.PSHN9D, A.PCPU9D, A.EPFU9D, A.PSCQ9D, A.PCPQ9D
+                FROM WAVEDLIB.F9D00 AS A
+                WHERE A.PSDU9D BETWEEN ? AND ? AND SUBSTRING(A.LN1C9D,1,3) = ? AND A.PSDU9D > 0
+            ) AS A
+        `.replace(/\n\s+/g, ' ').trim();
+        
+        const params = [startDate, endDate, '315'];
+        const results = await executeQuery(statsQuery, params);
+        const stats = results[0] || {};
+        
+
+        
+        const delayRate = stats.TOTAL_PRS > 0 ? Math.round((stats.DELAYED_PRS / stats.TOTAL_PRS) * 100) : 0;
+        const fulfillmentRate = stats.TOTAL_QTY > 0 ? Math.round((stats.TOTAL_COMP / stats.TOTAL_QTY) * 100) : 0;
+        
+        res.json({
+            totalPrs: stats.TOTAL_PRS || 0,
+            delayRate: `${delayRate}%`,
+            fulfillmentRate: `${fulfillmentRate}%`,
+            incompletePrs: stats.INCOMPLETE_PRS || 0
+        });
     } catch (error) {
         console.error('Lỗi Dashboard Stats:', error);
         res.status(500).json({ error: `Lỗi khi lấy dữ liệu thống kê: ${error.message}` });
     }
 });
 
-app.get('/api/dashboard/events', async (req, res) => {
+app.post('/api/update-status', (req, res) => {
     try {
-        const { startDate, endDate } = req.query;
-        const params = [
-            startDate.replace(/-/g, ''),
-            endDate.replace(/-/g, '')
-        ];
-        const results = await executeQuery(prodReportQueries.getCalendarEvents, params);
+        const { pr, status } = req.body;
+        const statusFile = path.join(__dirname, 'pr_status.json');
         
-        const events = results.map(row => ({
-            title: row.TITLE,
-            start: `${String(row.START_DATE).substring(0, 4)}-${String(row.START_DATE).substring(4, 6)}-${String(row.START_DATE).substring(6, 8)}`
-        }));
+        // Read existing status data
+        let statusData = {};
+        if (fs.existsSync(statusFile)) {
+            const fileContent = fs.readFileSync(statusFile, 'utf8');
+            statusData = JSON.parse(fileContent);
+        }
+        
+        // Update status
+        const now = new Date();
+        statusData[pr] = {
+            status: status,
+            updatedAt: now.toISOString(),
+            updatedTime: now.toLocaleString('vi-VN', { 
+                timeZone: 'Asia/Ho_Chi_Minh',
+                day: '2-digit',
+                month: '2-digit', 
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            })
+        };
+        
+        // Save to file
+        fs.writeFileSync(statusFile, JSON.stringify(statusData, null, 2));
+        
+        res.json({ success: true, message: `PR ${pr} đã cập nhật trạng thái: ${status}` });
+    } catch (error) {
+        console.error('Lỗi cập nhật trạng thái:', error);
+        res.status(500).json({ error: `Lỗi khi cập nhật trạng thái: ${error.message}` });
+    }
+});
+
+app.get('/api/get-status/:pr', (req, res) => {
+    try {
+        const { pr } = req.params;
+        const statusFile = path.join(__dirname, 'pr_status.json');
+        
+        if (fs.existsSync(statusFile)) {
+            const fileContent = fs.readFileSync(statusFile, 'utf8');
+            const statusData = JSON.parse(fileContent);
+            res.json(statusData[pr] || null);
+        } else {
+            res.json(null);
+        }
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/dashboard/calendar', async (req, res) => {
+    try {
+        const { year, month } = req.query;
+        const startDate = `${year}${month.padStart(2, '0')}01`;
+        const endDate = `${year}${month.padStart(2, '0')}31`;
+        
+        console.log(`Calendar query: ${startDate} to ${endDate}`);
+        
+        const calendarQuery = `
+            SELECT DISTINCT A.PSHN9D AS PR, A.ITMC9D AS ITEM, TRIM(IT1IA0) AS ITEM1, A.PSCQ9D AS QTY, 
+                   A.PCPQ9D AS COMP_PCS, A.PSDU9D AS START_D, A.EPFU9D AS EST_COM_D,
+                   A.PCPU9D AS ACT_COM_D, CASE WHEN A.PDSC9D = '1' THEN 'REMAKE' ELSE '' END AS REMAKE,
+                   CASE WHEN A.PCPU9D IS NOT NULL AND A.PCPU9D > A.EPFU9D THEN 'DELAY' ELSE 'OK' END AS DELAY_DAY
+            FROM WAVEDLIB.F9D00 AS A 
+            INNER JOIN WAVEDLIB.FA000 ON A.ITMC9D = ITMCA0
+            WHERE A.PSDU9D BETWEEN ? AND ? AND SUBSTRING(A.LN1C9D,1,3) = ? AND A.PSDU9D > 0
+            ORDER BY A.PSDU9D ASC
+        `.replace(/\n\s+/g, ' ').trim();
+        
+        const params = [startDate, endDate, '315'];
+        console.log(`Calendar params: [${params.join(', ')}]`);
+        const results = await executeQuery(calendarQuery, params);
+        console.log(`Calendar results: ${results.length} records`);
+        
+        // Remove duplicates by PR number, keep the first one
+        const uniqueResults = [];
+        const seenPRs = new Set();
+        
+        for (const row of results) {
+            if (!seenPRs.has(row.PR)) {
+                seenPRs.add(row.PR);
+                uniqueResults.push(row);
+            }
+        }
+        
+
+        
+        const events = uniqueResults.map(row => {
+            const startDateStr = String(row.START_D).padStart(8, '0');
+            const formattedDate = `${startDateStr.substring(0, 4)}-${startDateStr.substring(4, 6)}-${startDateStr.substring(6, 8)}`;
+            
+
+            
+            function formatDbDate(dateNum) {
+                if (!dateNum) return 'N/A';
+                const dateStr = String(dateNum).padStart(8, '0');
+                return `${dateStr.substring(6, 8)}/${dateStr.substring(4, 6)}/${dateStr.substring(0, 4)}`;
+            }
+            
+            const qty = parseInt(row.QTY) || 0;
+            const comp = parseInt(row.COMP_PCS) || 0;
+            const isCompleted = !!row.ACT_COM_D;
+            const isDelay = row.DELAY_DAY === 'DELAY';
+            const isIncomplete = !row.ACT_COM_D || row.ACT_COM_D === 0;
+            
+            let backgroundColor, borderColor;
+            
+            if (isDelay) {
+                backgroundColor = '#f59e0b'; // Yellow for delay
+                borderColor = '#d97706';
+            } else if (isCompleted && comp < qty) {
+                backgroundColor = '#ef4444'; // Red for shortage
+                borderColor = '#dc2626';
+            } else if (isCompleted) {
+                backgroundColor = '#10b981'; // Green for completed
+                borderColor = '#059669';
+            } else {
+                backgroundColor = '#6b7280'; // Gray for not completed
+                borderColor = '#4b5563';
+            }
+            
+            return {
+                id: row.PR,
+                title: row.PR,
+                start: formattedDate,
+                backgroundColor,
+                borderColor,
+                textColor: 'white',
+                extendedProps: {
+                    pr: row.PR,
+                    item: row.ITEM,
+                    item1: row.ITEM1,
+                    qty: row.QTY,
+                    comp: row.COMP_PCS,
+                    estCom: row.EST_COM_D ? formatDbDate(row.EST_COM_D) : 'N/A',
+                    actCom: row.ACT_COM_D ? formatDbDate(row.ACT_COM_D) : 'N/A',
+                    isDelay,
+                    isCompleted,
+                    isIncomplete,
+                    remake: row.REMAKE,
+                    shortage: comp < qty ? qty - comp : 0
+                }
+            };
+        });
         
         res.json(events);
     } catch (error) {
@@ -91,7 +253,19 @@ app.get('/api/production', async (req, res) => {
             currentRowLimit
         ];
         const result = await executeQuery(prodReportQueries.productionReportComplex, params);
-        res.json(result);
+        
+        // Remove duplicates by PR number, keep the latest one
+        const uniqueResults = [];
+        const seenPRs = new Set();
+        
+        for (const row of result) {
+            if (!seenPRs.has(row.PR)) {
+                seenPRs.add(row.PR);
+                uniqueResults.push(row);
+            }
+        }
+        
+        res.json(uniqueResults);
     } catch (error) {
         console.error('Lỗi Production:', error);
         res.status(500).json({ error: `Lỗi khi chạy Production query: ${error.message}` });
@@ -173,6 +347,9 @@ async function executeQuery(sql, params) {
     }
 }
 
-app.listen(port, () => {
-    console.log(`Server đang chạy tại http://localhost:${port}`);
+app.listen(port, '0.0.0.0', () => {
+    console.log(`Server đang chạy tại:`);
+    console.log(`- Local: http://localhost:${port}`);
+    console.log(`- Network: http://[YOUR_IP]:${port}`);
+    console.log(`Để truy cập từ máy khác, sử dụng IP của máy này thay vì localhost`);
 });

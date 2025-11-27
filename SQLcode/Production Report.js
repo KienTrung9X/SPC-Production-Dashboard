@@ -4,7 +4,7 @@ const config = require('../config');
 const productionQueries = {
     // Production Report - An toàn với parameterized queries
     productionReportComplex: `
-    SELECT
+    SELECT DISTINCT
         TRIM(A.LN1C9D)||'-'||TRIM(A.LN2C9D) as Line, TRIM(CN1I09) as Line_Name,
         CASE WHEN A.PDSC9D = '1' THEN 'REMAKE' ELSE '' END as REMAKE,
         PSHN9Y as REMAKE_LINK, A.PSHN9D as PR, A.ITMC9D as ITEM, TRIM(IT1IA0) as ITEM1,
@@ -56,24 +56,12 @@ const productionQueries = {
     WHERE A.PSDU9D BETWEEN ? AND ?
         AND SUBSTRING(A.LN1C9D,1,3) = ?
         AND A.PSDU9D > 0
-    GROUP BY TRIM(A.LN1C9D)||'-'||TRIM(A.LN2C9D), TRIM(CN1I09), CASE WHEN A.PDSC9D = '1' THEN 'REMAKE' ELSE '' END,
-        PSHN9Y, A.PSHN9D, A.ITMC9D, TRIM(IT1IA0), TRIM(IT2IA0), TRIM(IT3IA0),
-        TRIM(CLSCA0), A.LNGV9D, A.LUNC9D, A.CLRC9D, A.PSCQ9D, A.PSDU9D, A.PSDT9D,
-        A.EPFU9D, A.EPFT9D, A.PCPU9D, A.PCMT9D,
-        CASE WHEN A.PCPU9D <= A.EPFU9D THEN 'ONTIME' ELSE 'DELAY' END,
-        CASE 
-            WHEN A.PCPU9D IS NULL AND TQ090.RUPUQ0 IS NOT NULL THEN 'Hoàn thành tại Sewing'
-            WHEN A.PCPU9D IS NOT NULL THEN 'ONTIME COMPLETED'
-            ELSE 'NOT COMPLETE' 
-        END,
-        A.PCPQ9D, MC_DATE, MC_TIME, STATUS, E.RADUV1, E.RADTV1,
-        TQ090.RUPUQ0, TQ090.RUPTQ0
     ORDER BY A.PSDU9D DESC, A.PSDT9D DESC
     FETCH FIRST ? ROWS ONLY`.replace(/\\n\\s+/g, ' ').trim(),
 
     // Query để chỉ lấy Production Report updates
     productionReportUpdates: `
-    SELECT
+    SELECT DISTINCT
         TRIM(A.LN1C9D)||'-'||TRIM(A.LN2C9D) as Line, TRIM(CN1I09) as Line_Name,
         CASE WHEN A.PDSC9D = '1' THEN 'REMAKE' ELSE '' END as REMAKE,
         PSHN9Y as REMAKE_LINK, A.PSHN9D as PR, A.ITMC9D as ITEM, TRIM(IT1IA0) as ITEM1,
@@ -125,18 +113,6 @@ const productionQueries = {
     WHERE SUBSTRING(A.LN1C9D,1,3) = ?
         AND A.PSDU9D > 0
         AND (TQ090.RUPUQ0 > ? OR (TQ090.RUPUQ0 = ? AND TQ090.RUPTQ0 > ?))
-    GROUP BY TRIM(A.LN1C9D)||'-'||TRIM(A.LN2C9D), TRIM(CN1I09), CASE WHEN A.PDSC9D = '1' THEN 'REMAKE' ELSE '' END,
-        PSHN9Y, A.PSHN9D, A.ITMC9D, TRIM(IT1IA0), TRIM(IT2IA0), TRIM(IT3IA0),
-        TRIM(CLSCA0), A.LNGV9D, A.LUNC9D, A.CLRC9D, A.PSCQ9D, A.PSDU9D, A.PSDT9D,
-        A.EPFU9D, A.EPFT9D, A.PCPU9D, A.PCMT9D,
-        CASE WHEN A.PCPU9D <= A.EPFU9D THEN 'ONTIME' ELSE 'DELAY' END,
-        CASE 
-            WHEN A.PCPU9D IS NULL AND TQ090.RUPUQ0 IS NOT NULL THEN 'Hoàn thành tại Sewing'
-            WHEN A.PCPU9D IS NOT NULL THEN 'ONTIME COMPLETED'
-            ELSE 'NOT COMPLETE' 
-        END,
-        A.PCPQ9D, MC_DATE, MC_TIME, STATUS, E.RADUV1, E.RADTV1,
-        TQ090.RUPUQ0, TQ090.RUPTQ0
     ORDER BY A.PSDU9D DESC, A.PSDT9D DESC`.replace(/\\n\\s+/g, ' ').trim(),
 
     // Query để lấy các chỉ số thống kê cho dashboard

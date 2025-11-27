@@ -14,6 +14,18 @@
             white-space: normal !important;
             overflow: hidden;
             text-overflow: ellipsis;
+            font-size: 0.75rem;
+            padding: 1px 3px;
+            margin: 1px 0;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .fc-daygrid-event:hover {
+            opacity: 0.8;
+            transform: scale(1.02);
+        }
+        .fc-event-title {
+            font-weight: 500;
         }
     </style>
 </head>
@@ -34,18 +46,25 @@
 
     <main>
         <!-- Stat Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4" id="stat-cards">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4" id="stat-cards">
             <div class="bg-white p-4 rounded-md shadow-md text-center">
                 <h3 class="text-lg font-semibold text-gray-600">Total PRs This Month</h3>
                 <p class="text-3xl font-bold text-blue-500">0</p>
             </div>
             <div class="bg-white p-4 rounded-md shadow-md text-center">
                 <h3 class="text-lg font-semibold text-gray-600">Delay Rate</h3>
+                <p class="text-sm text-gray-500 mb-1">Delayed PRs / Total PRs</p>
                 <p class="text-3xl font-bold text-red-500">0%</p>
             </div>
             <div class="bg-white p-4 rounded-md shadow-md text-center">
-                <h3 class="text-lg font-semibold text-gray-600">Qty Fulfillment</h3>
+                <h3 class="text-lg font-semibold text-gray-600">Completion Rate</h3>
+                <p class="text-sm text-gray-500 mb-1">Completed Qty / Total Qty</p>
                 <p class="text-3xl font-bold text-green-500">0%</p>
+            </div>
+            <div class="bg-white p-4 rounded-md shadow-md text-center">
+                <h3 class="text-lg font-semibold text-gray-600">Incomplete PRs</h3>
+                <p class="text-sm text-gray-500 mb-1">PRs Not Completed</p>
+                <p class="text-3xl font-bold text-orange-500">0</p>
             </div>
         </div>
 
@@ -59,18 +78,179 @@
         document.addEventListener('DOMContentLoaded', function() {
             const calendarEl = document.getElementById('calendar');
             
-            // Initialize Calendar without loading data
             const calendar = new FullCalendar.Calendar(calendarEl, {
                 initialView: 'dayGridMonth',
+
                 headerToolbar: {
                     left: 'prev,next today',
                     center: 'title',
-                    right: 'dayGridMonth,timeGridWeek'
+                    right: 'dayGridMonth'
                 },
-                events: [], // Empty events array
-                eventColor: '#3b82f6'
+                events: function(info, successCallback, failureCallback) {
+                    // Calculate the middle of the month to get correct month
+                    const midMonth = new Date(info.start.getTime() + (info.end.getTime() - info.start.getTime()) / 2);
+                    const year = midMonth.getFullYear();
+                    const month = midMonth.getMonth() + 1;
+
+                    
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+                    
+                    fetch(`/api/dashboard/calendar?year=${year}&month=${month}`, {
+                        signal: controller.signal
+                    })
+                        .then(response => {
+                            clearTimeout(timeoutId);
+                            if (!response.ok) throw new Error('Network error');
+                            return response.json();
+                        })
+                        .then(data => {
+
+                            successCallback(data);
+                        })
+                        .catch(error => {
+                            clearTimeout(timeoutId);
+                            console.error('Error loading calendar events:', error);
+                            failureCallback(error);
+                        });
+                },
+                eventClick: function(info) {
+                    const pr = info.event.title;
+                    const props = info.event.extendedProps;
+                    showStatusDialog(pr, props, info.event);
+                },
+                dayMaxEvents: 3,
+                moreLinkClick: 'popover'
             });
+            
             calendar.render();
+            
+            // Load initial stats
+            loadMonthlyStats();
+            
+            // Update stats when month changes
+            calendar.on('datesSet', function(info) {
+                loadMonthlyStats();
+            });
+            
+            function loadMonthlyStats() {
+                const currentDate = calendar.getDate();
+                const year = currentDate.getFullYear();
+                const month = currentDate.getMonth() + 1;
+                
+                fetch(`/api/dashboard/stats?year=${year}&month=${month}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        const statElements = document.querySelectorAll('#stat-cards .text-3xl');
+                        if (statElements[0]) statElements[0].textContent = data.totalPrs;
+                        if (statElements[1]) statElements[1].textContent = data.delayRate;
+                        if (statElements[2]) statElements[2].textContent = data.fulfillmentRate;
+                        if (statElements[3]) statElements[3].textContent = data.incompletePrs;
+                    })
+                    .catch(error => {});
+            }
+            
+            function showStatusDialog(pr, props, event) {
+                const modal = document.createElement('div');
+                modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000;';
+                
+                const dialog = document.createElement('div');
+                dialog.style.cssText = 'background: white; padding: 2rem; border-radius: 1rem; box-shadow: 0 10px 25px rgba(0,0,0,0.2); max-width: 500px; width: 90%;';
+                
+                let statusInfo = 'Chưa hoàn thành';
+                if (props.isCompleted) {
+                    statusInfo = props.shortage > 0 ? `Hoàn thành (Thiếu: ${props.shortage})` : 'Hoàn thành';
+                }
+                
+                const statusButtons = props.isCompleted ? 
+                    '<p style="color: #10b981; font-weight: 600; text-align: center; margin: 1rem 0;">PR này đã hoàn thành - Không thể cập nhật trạng thái</p>' :
+                    `<div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+                        <button id="btn-mf" style="flex: 1; padding: 0.75rem; background: #10b981; color: white; border: none; border-radius: 0.5rem; font-weight: 500; cursor: pointer;">Đã chuyển sang MF Giặt</button>
+                        <button id="btn-dye" style="flex: 1; padding: 0.75rem; background: #8b5cf6; color: white; border: none; border-radius: 0.5rem; font-weight: 500; cursor: pointer;">Đã chuyển sang Dye Test Màu</button>
+                    </div>`;
+                
+                // Get saved status from server
+                fetch(`/api/get-status/${pr}`)
+                    .then(response => response.json())
+                    .then(savedStatus => {
+                        const savedStatusText = '';
+                        
+                        dialog.innerHTML = `
+                            <h3 style="margin: 0 0 1rem 0; font-size: 1.25rem; font-weight: 600; color: #1f2937;">Thông tin PR: ${pr}</h3>
+                            <div style="background: #f9fafb; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; font-size: 0.875rem;">
+                                <div style="margin-bottom: 0.5rem;"><strong>Item1:</strong> ${props.item1 || 'N/A'}</div>
+                                <div style="margin-bottom: 0.5rem;"><strong>Est Com:</strong> ${props.estCom || 'N/A'}</div>
+                                <div style="margin-bottom: 0.5rem;"><strong>Act Com:</strong> ${props.actCom || 'N/A'}</div>
+                                <div style="margin-bottom: 0.5rem;"><strong>Comp/Qty:</strong> ${props.comp || 0}/${props.qty || 0}${(props.comp < props.qty) ? ` <span style="color: #ef4444; font-weight: 600;">(Thiếu: ${(props.qty - props.comp).toFixed(1)})</span>` : ''}</div>
+                                <div style="margin-bottom: 0.5rem;"><strong>Trạng thái:</strong> ${props.isIncomplete ? 'INCOMPLETE' : (props.isDelay ? 'DELAY' : 'ONTIME')}${(props.remake && props.remake.trim() === 'REMAKE') ? ' - REMAKE' : ''}</div>
+                                ${!props.isCompleted ? `<div style="margin-bottom: 0.5rem; color: #f59e0b; font-weight: 600;"><strong>Vị trí hiện tại:</strong> ${savedStatus ? `${savedStatus.status}<br><small style="color: #6b7280; font-weight: normal;">${savedStatus.updatedTime || 'N/A'}</small>` : 'Chưa cập nhật'}</div>` : ''}
+                                ${savedStatusText}
+                            </div>
+                            ${statusButtons}
+                            <button id="btn-cancel" style="width: 100%; padding: 0.5rem; background: #6b7280; color: white; border: none; border-radius: 0.5rem; margin-top: 1rem; cursor: pointer;">Đóng</button>
+                        `;
+                        
+                        // Re-attach event handlers after innerHTML update
+                        if (!props.isCompleted) {
+                            document.getElementById('btn-mf').onclick = () => updateStatus(pr, 'Đã chuyển sang MF Giặt', '#10b981', event, modal);
+                            document.getElementById('btn-dye').onclick = () => updateStatus(pr, 'Đã chuyển sang Dye Test Màu', '#8b5cf6', event, modal);
+                        }
+                        document.getElementById('btn-cancel').onclick = () => document.body.removeChild(modal);
+                    })
+                    .catch(error => {
+
+                        // Fallback to basic dialog without saved status
+                        dialog.innerHTML = `
+                            <h3 style="margin: 0 0 1rem 0; font-size: 1.25rem; font-weight: 600; color: #1f2937;">Thông tin PR: ${pr}</h3>
+                            <div style="background: #f9fafb; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; font-size: 0.875rem;">
+                                <div style="margin-bottom: 0.5rem;"><strong>Item1:</strong> ${props.item1 || 'N/A'}</div>
+                                <div style="margin-bottom: 0.5rem;"><strong>Est Com:</strong> ${props.estCom || 'N/A'}</div>
+                                <div style="margin-bottom: 0.5rem;"><strong>Act Com:</strong> ${props.actCom || 'N/A'}</div>
+                                <div style="margin-bottom: 0.5rem;"><strong>Comp/Qty:</strong> ${props.comp || 0}/${props.qty || 0}${(props.comp < props.qty) ? ` <span style="color: #ef4444; font-weight: 600;">(Thiếu: ${(props.qty - props.comp).toFixed(1)})</span>` : ''}</div>
+                                <div style="margin-bottom: 0.5rem;"><strong>Trạng thái:</strong> ${props.isIncomplete ? 'INCOMPLETE' : (props.isDelay ? 'DELAY' : 'ONTIME')}${(props.remake && props.remake.trim() === 'REMAKE') ? ' - REMAKE' : ''}</div>
+                            </div>
+                            ${statusButtons}
+                            <button id="btn-cancel" style="width: 100%; padding: 0.5rem; background: #6b7280; color: white; border: none; border-radius: 0.5rem; margin-top: 1rem; cursor: pointer;">Đóng</button>
+                        `;
+                        
+                        if (!props.isCompleted) {
+                            document.getElementById('btn-mf').onclick = () => updateStatus(pr, 'Đã chuyển sang MF Giặt', '#10b981', event, modal);
+                            document.getElementById('btn-dye').onclick = () => updateStatus(pr, 'Đã chuyển sang Dye Test Màu', '#8b5cf6', event, modal);
+                        }
+                        document.getElementById('btn-cancel').onclick = () => document.body.removeChild(modal);
+                    });
+                
+                modal.appendChild(dialog);
+                document.body.appendChild(modal);
+                
+                modal.onclick = (e) => { if (e.target === modal) document.body.removeChild(modal); };
+            }
+            
+            function updateStatus(pr, status, color, event, modal) {
+                fetch('/api/update-status', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pr: pr, status: status })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(data.message);
+                        // Force immediate color change
+                        event.setProp('backgroundColor', color);
+                        event.setProp('borderColor', color === '#10b981' ? '#059669' : '#7c3aed');
+                        // Refresh calendar to ensure changes are visible
+                        calendar.refetchEvents();
+                        document.body.removeChild(modal);
+                    } else {
+                        alert('Lỗi cập nhật trạng thái');
+                    }
+                })
+                .catch(error => {
+
+                    alert('Lỗi kết nối server');
+                });
+            }
         });
     </script>
 </body>

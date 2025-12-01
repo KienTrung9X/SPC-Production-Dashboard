@@ -1,188 +1,142 @@
-# Development Guidelines
+# SPC Production Dashboard - Development Guidelines
 
 ## Code Quality Standards
 
-### File Organization and Structure
-- **Modular Architecture**: Separate concerns into distinct modules (SQLcode/, jules_session/, config.js)
-- **Configuration Centralization**: Use single config.js file for all database and application parameters
-- **Query Separation**: Keep SQL queries in dedicated modules (Production Report.js, Bin Info.js)
-- **Output Management**: Dedicated output/ directory for generated files with timestamp naming
+### File Organization Patterns
+- **Modular SQL Queries**: SQL queries are separated into dedicated modules (`SQLcode/` directory) with descriptive filenames
+- **Configuration Centralization**: Database and application settings centralized in `config.js` with clear parameter documentation
+- **Server Variants**: Multiple server implementations (server.js, simple-server.js) for different deployment scenarios
+- **Output Directory**: Dedicated `/output/` directory for generated files and exports
 
 ### Naming Conventions
-- **Files**: Use descriptive names with spaces for SQL modules ("Production Report.js", "Bin Info.js")
-- **Variables**: Use camelCase for JavaScript variables (startDate, endDate, lineCode, rowLimit)
-- **Constants**: Use descriptive object keys in config (hostname, database, uid, pwd)
-- **API Endpoints**: Use RESTful patterns (/api/dashboard/stats, /api/trz50, /api/production)
+- **File Names**: Use kebab-case for view templates (`dashboard-simple.ejs`, `simple-test.ejs`)
+- **Variable Names**: Use camelCase for JavaScript variables (`formattedStartDate`, `currentLineCode`)
+- **Database Fields**: Preserve original DB2 field names in uppercase (`PSHN9D`, `ITMC9D`, `EPFU9D`)
+- **API Endpoints**: Use descriptive REST-style paths (`/api/dashboard/stats`, `/api/production/updates`)
 
-### Code Formatting Patterns
-- **SQL Queries**: Multi-line format with consistent indentation and .replace(/\\n\\s+/g, ' ').trim() for cleanup
-- **Comments**: Use decorative comment blocks with Unicode characters (═══, ───) for section separation
-- **Error Handling**: Consistent try-catch blocks with descriptive Vietnamese error messages
-- **Function Structure**: Async/await pattern for database operations with proper connection cleanup
-
-## Semantic Patterns Overview
-
-### Database Connection Management (5/5 files)
+### Error Handling Patterns
 ```javascript
-const connStr = `DRIVER={IBM i Access ODBC Driver};SYSTEM=${config.hostname};UID=${config.uid};PWD=${config.pwd};DBQ=WAVEDLIB;`;
-
-async function executeQuery(sql, params) {
+// Standard async/await error handling with descriptive messages
+try {
     const connection = await odbc.connect(connStr);
-    try {
-        return await connection.query(sql, params);
-    } finally {
-        await connection.close();
-    }
+    const result = await connection.query(sql, params);
+    await connection.close();
+    return result;
+} catch (error) {
+    console.error('Lỗi Production:', error);
+    res.status(500).json({ error: `Lỗi khi lấy dữ liệu: ${error.message}` });
 }
 ```
 
-### Parameterized Query Pattern (4/5 files)
-- **Security First**: All SQL queries use parameterized inputs to prevent injection
-- **Parameter Arrays**: Consistent parameter passing with array format
-- **Date Formatting**: Automatic conversion from YYYY-MM-DD to YYYYMMDD format
-- **Default Fallbacks**: Use config values when parameters not provided
+## Database Integration Standards
 
-### Configuration-Driven Development (5/5 files)
+### Connection Management
+- **Connection String Format**: Use DSN-based ODBC connections with parameterized credentials
+- **Connection Lifecycle**: Always close connections in finally blocks or after query completion
+- **Environment Variables**: Support environment variable overrides for sensitive configuration
+
+### Query Parameterization
 ```javascript
-const config = require('./config');
-// or
-const config = require('../config');
-
-// Usage with fallbacks
-const params = [
-    lineCode || config.lineCode,
-    startDate ? startDate.replace(/-/g, '') : config.startDate,
-    endDate ? endDate.replace(/-/g, '') : config.endDate,
-    parseInt(rowLimit || config.rowLimit, 10)
-];
+// Always use parameterized queries for security
+const params = [startDate, endDate, lineCode];
+const result = await executeQuery(prodReportQueries.productionReportComplex, params);
 ```
 
-### Error Handling Standards (4/5 files)
-- **Vietnamese Error Messages**: Consistent use of Vietnamese for user-facing errors
-- **Structured Error Responses**: JSON format with error field for API responses
-- **Console Logging**: Detailed error logging with context information
-- **Graceful Degradation**: Proper error handling without application crashes
+### SQL Query Organization
+- **Template Literals**: Use template literals for complex multi-line SQL with `.replace(/\\n\\s+/g, ' ').trim()`
+- **Parameter Functions**: Support both static queries and parameterized query functions
+- **Query Modules**: Export query objects with descriptive method names
 
-### API Response Patterns (3/5 files)
+## API Design Patterns
+
+### Route Organization
 ```javascript
-// Success response
-res.json(result);
-
-// Error response
-res.status(500).json({ error: `Lỗi khi lấy dữ liệu: ${error.message}` });
-
-// CSV export response
-res.header('Content-Type', 'text/csv');
-res.attachment(`${type}_export.csv`);
-res.send(csv);
-```
-
-## Internal API Usage and Patterns
-
-### Express.js Route Structure
-```javascript
-// Page routes
-app.get('/', (req, res) => {
-    res.render('dashboard');
-});
-
-// API routes with error handling
-app.get('/api/endpoint', async (req, res) => {
-    try {
-        const { param1, param2 } = req.query;
-        const result = await executeQuery(query, params);
-        res.json(result);
-    } catch (error) {
-        console.error('Lỗi Description:', error);
-        res.status(500).json({ error: `Lỗi message: ${error.message}` });
-    }
+// Group routes by functionality with clear section comments
+// =================================================================
+// == API Routes for Dashboard
+// =================================================================
+app.get('/api/dashboard/stats', async (req, res) => {
+    // Implementation
 });
 ```
 
-### Query Module Exports Pattern
+### Response Formatting
+- **Consistent JSON Structure**: Always return structured JSON with error handling
+- **Data Transformation**: Transform database field names to user-friendly formats
+- **Duplicate Removal**: Implement deduplication logic for database results
+
+### File Operations
 ```javascript
-const moduleQueries = {
-    queryName: `SQL QUERY STRING`.replace(/\\n\\s+/g, ' ').trim(),
-    anotherQuery: `ANOTHER SQL`.replace(/\\n\\s+/g, ' ').trim()
+// CSV export with proper headers and encoding
+res.header('Content-Type', 'text/csv; charset=utf-8');
+res.attachment(`production_${timestamp}.csv`);
+```
+
+## Frontend Integration
+
+### Template Engine Usage
+- **EJS Templates**: Use EJS for server-side rendering with descriptive template names
+- **Static Assets**: Serve static files from `/public/` directory
+- **View Organization**: Separate templates by functionality in `/views/` directory
+
+### Real-time Updates
+- **Polling Pattern**: Implement client-side polling every 15 seconds for live data
+- **Browser Notifications**: Integrate browser notification API for new order alerts
+- **Calendar Integration**: Use FullCalendar or similar libraries for production scheduling
+
+## Configuration Management
+
+### Environment Configuration
+```javascript
+// Support both config file and environment variables
+const connStr = process.env.DB_CONN_STR || 
+    `DSN=WAVEDLIB_HN;UID=${config.uid};SYSTEM=${config.hostname};...`;
+```
+
+### Parameter Documentation
+```javascript
+// Clear parameter documentation with examples
+const config = {
+    startDate: 20250101,  // Ngày bắt đầu (YYYYMMDD)
+    endDate: 20251231,    // Ngày kết thúc (YYYYMMDD)
+    lineCode: '315',      // Mã dây chuyền (315, 312, 311, v.v.)
+    rowLimit: 10000000    // Số bản ghi tối đa
 };
-
-module.exports = moduleQueries;
 ```
 
-### CSV Generation Pattern (2/5 files)
+## Performance Optimization
+
+### Query Optimization
+- **FETCH FIRST**: Use `FETCH FIRST n ROWS ONLY` for result limiting
+- **Indexed Filtering**: Filter by indexed fields like date ranges and line codes
+- **JOIN Optimization**: Use appropriate JOIN types (LEFT JOIN, INNER JOIN) based on data relationships
+
+### Memory Management
+- **Connection Pooling**: Close database connections promptly to prevent resource leaks
+- **Result Deduplication**: Remove duplicate records at application level when needed
+- **Streaming for Large Exports**: Use streaming for large CSV exports
+
+## Security Practices
+
+### Input Validation
+- **Parameterized Queries**: Always use parameterized queries to prevent SQL injection
+- **Input Sanitization**: Validate and sanitize user inputs before processing
+- **Environment Variables**: Store sensitive credentials in environment variables
+
+### Error Information
+- **Generic Error Messages**: Return generic error messages to clients while logging detailed errors server-side
+- **Credential Protection**: Never expose database credentials in error messages or logs
+
+## Testing and Debugging
+
+### Console Logging
 ```javascript
-// Header generation
-const headers = Object.keys(data[0]);
-let csv = headers.join(',') + '\\n';
-
-// Data processing with proper escaping
-data.forEach(row => {
-    csv += headers.map(header => JSON.stringify(row[header])).join(',') + '\\n';
-});
+// Structured logging with clear prefixes
+console.log(`📋 Parameters:`);
+console.log(`  • Start Date: ${dynamicConfig.startDate}`);
+console.log(`✓ Thành công: ${results.length} bản ghi → ${filename}`);
 ```
 
-## Frequently Used Code Idioms
-
-### Date Format Conversion (4/5 files)
-```javascript
-// Convert YYYY-MM-DD to YYYYMMDD
-startDate.replace(/-/g, '')
-endDate.replace(/-/g, '')
-```
-
-### Timestamp Generation (2/5 files)
-```javascript
-const timestamp = new Date().toISOString().slice(0,10).replace(/-/g,'') + '_' + 
-                 new Date().toISOString().slice(11,19).replace(/:/g,'');
-```
-
-### Parameter Validation and Defaults (3/5 files)
-```javascript
-const params = [
-    lineCode || config.lineCode,
-    parseInt(rowLimit || config.rowLimit, 10)
-];
-```
-
-### SQL Query Cleanup (4/5 files)
-```javascript
-const query = `
-    MULTI-LINE
-    SQL QUERY
-`.replace(/\\n\\s+/g, ' ').trim();
-```
-
-## Popular Annotations and Comments
-
-### Section Separators (3/5 files)
-```javascript
-// ═══════════════════════════════════════════════════════════════
-// SECTION NAME - Description
-// ═══════════════════════════════════════════════════════════════
-
-// ───────────────────────────────────────────────────────────
-// SUBSECTION (Change here)
-// ───────────────────────────────────────────────────────────
-```
-
-### Vietnamese Documentation (4/5 files)
-- Use Vietnamese comments for business logic explanations
-- English for technical/code-related comments
-- Descriptive error messages in Vietnamese for end users
-
-### Query Documentation (2/5 files)
-```javascript
-// Query để chỉ lấy [specific data] - An toàn với parameterized queries
-// SQL Query để lấy [data type] từ [database]
-```
-
-## Development Standards Summary
-
-1. **Security**: Always use parameterized queries, never string concatenation
-2. **Configuration**: Centralize all settings in config.js with clear section comments
-3. **Error Handling**: Provide meaningful Vietnamese error messages for users
-4. **Code Organization**: Separate SQL queries into dedicated modules
-5. **Connection Management**: Always close database connections in finally blocks
-6. **API Design**: Use consistent RESTful patterns with proper HTTP status codes
-7. **File Naming**: Use descriptive names that reflect functionality
-8. **Documentation**: Mix Vietnamese for business context, English for technical details
+### Command Line Interface
+- **Argument Parsing**: Support command-line parameters for batch operations
+- **Help Documentation**: Provide clear usage examples and parameter descriptions

@@ -1,106 +1,79 @@
-# Project Structure
+# SPC Production Dashboard - Project Structure
 
 ## Directory Organization
 
 ### Root Level
-```
-SPC-Production-Dashboard/
-├── config.js              # Central configuration for database and parameters
-├── package.json           # Main project dependencies (ibm_db, odbc)
-├── run-odbc.js            # Primary ODBC connection and query execution
-└── .gitignore             # Version control exclusions
-```
+- **server.js** - Main application server with full dashboard functionality
+- **simple-server.js** - Simplified server implementation (used as npm start entry point)
+- **config.js** - Database connection configuration
+- **run-odbc.js** - ODBC connection utilities and testing
+- **export-production.js** - Production data export functionality
+- **package.json** - Node.js dependencies and project metadata
 
-### Jules Session Module
-```
-jules_session/
-├── server.js              # Main Express server with dashboard routes
-├── simple-server.js       # Simplified server implementation
-├── package.json           # Web server dependencies (express, ejs, odbc)
-├── README.md             # Vietnamese documentation and setup guide
-└── views/
-    ├── dashboard.ejs      # Main dashboard template
-    └── data.ejs          # Data display template
-```
+### Core Directories
 
-### SQL Code Module
-```
-SQLcode/
-├── Production Report.js   # Production reporting queries and logic
-└── Bin Info.js           # Bin information tracking queries
-```
+#### `/views/` - EJS Templates
+- **dashboard.ejs** - Main production dashboard interface
+- **dashboard-simple.ejs** - Simplified dashboard layout
+- **data.ejs** - Data display template
+- **test.ejs** - Testing interface
+- **simple-test.ejs** - Basic test template
 
-### Output Directory
-```
-output/
-├── trz50_20251126_092349.csv  # Generated production reports
-└── trz50_20251126_092438.csv  # Timestamped export files
-```
+#### `/SQLcode/` - Database Queries
+- **Bin Info.js** - TRZ50 bin information queries
+- **Production Report.js** - Complex production reporting queries
+
+#### `/jules_session/` - Alternative Implementation
+- Complete alternate server setup with own package.json and views
+- **server.js** - Session-based server implementation
+- **views/index.ejs** - Session dashboard template
+
+#### `/output/` - Generated Files
+- Directory for exported data and generated reports
 
 ## Core Components
 
-### Configuration Layer
-- **config.js**: Centralized configuration management
-  - Database connection parameters (hostname, credentials)
-  - Date range settings (startDate, endDate)
-  - Production line codes (315, 312, 311)
-  - Query limits and performance tuning
+### Database Layer
+- **ODBC Connection**: Direct connection to IBM DB2 using odbc package
+- **Query Modules**: Separated SQL queries in dedicated files for maintainability
+- **Connection String**: Configurable DB2 connection with environment variable support
 
-### Database Access Layer
-- **run-odbc.js**: Primary database interface
-  - ODBC connection management
-  - Query execution and result processing
-  - Error handling and connection pooling
+### Web Server Layer
+- **Express.js Framework**: RESTful API endpoints and static file serving
+- **EJS Templating**: Server-side rendering for dashboard views
+- **Static Assets**: CSS, JavaScript, and icon files served from public directory
 
-### Web Application Layer
-- **jules_session/server.js**: Express.js web server
-  - RESTful API endpoints (/api/new_orders, /api/completed_status)
-  - Real-time data polling and updates
-  - Browser notification integration
-
-### Query Processing Layer
-- **SQLcode/**: Specialized query modules
-  - Production Report.js: Manufacturing data queries
-  - Bin Info.js: Inventory and bin tracking queries
-
-### Template Layer
-- **views/**: EJS template system
-  - dashboard.ejs: Main production dashboard interface
-  - data.ejs: Data visualization components
+### API Endpoints
+- **GET /api/trz50** - Bin information data
+- **GET /api/production** - Production report data
+- **GET /api/export/:type** - CSV export functionality
+- **GET /** - Dashboard rendering routes
 
 ## Architectural Patterns
 
-### Multi-Tier Architecture
-1. **Presentation Tier**: Web browser with real-time updates
-2. **Application Tier**: Node.js Express server with business logic
-3. **Data Tier**: IBM DB2 database with ODBC connectivity
+### MVC Architecture
+- **Models**: Database queries in SQLcode directory
+- **Views**: EJS templates in views directory
+- **Controllers**: Route handlers in server files
 
-### Configuration-Driven Design
-- Centralized configuration in config.js
-- Environment-specific settings
-- Parameterized queries and connection strings
+### Separation of Concerns
+- Configuration isolated in config.js
+- Database queries modularized in separate files
+- Multiple server implementations for different use cases
 
-### Modular Query System
-- Separate modules for different data types
-- Reusable query components
-- Specialized reporting functions
-
-### Real-Time Data Flow
-- Polling-based updates (15-second intervals)
-- Browser notification system
+### Real-time Updates
+- Client-side polling every 15 seconds
+- Browser notification API integration
 - Automatic data refresh without page reload
 
 ## Component Relationships
-
-### Data Flow
-1. **config.js** → Provides connection and query parameters
-2. **run-odbc.js** → Executes database queries using config
-3. **SQLcode/** → Contains specialized query logic
-4. **server.js** → Serves web interface and API endpoints
-5. **views/** → Renders data in browser-friendly format
-
-### Dependency Structure
-- Root package.json: Database connectivity (ibm_db, odbc)
-- Jules session package.json: Web framework (express, ejs)
-- Shared configuration across all modules
-- Independent query modules with specific responsibilities
+```
+server.js
+├── config.js (database configuration)
+├── SQLcode/
+│   ├── Bin Info.js (TRZ50 queries)
+│   └── Production Report.js (production queries)
+└── views/
+    ├── dashboard.ejs (main interface)
+    └── other templates
+```

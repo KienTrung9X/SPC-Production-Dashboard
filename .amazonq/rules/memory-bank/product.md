@@ -1,64 +1,31 @@
-# SPC Production Dashboard
+# SPC Production Dashboard - Product Overview
 
 ## Project Purpose
-A comprehensive production monitoring system that provides real-time visibility into manufacturing operations through database connectivity and web-based dashboards. The system enables production teams to track orders, monitor line performance, and receive automated notifications for critical production events.
+Real-time production order monitoring dashboard that connects to IBM DB2 database to track manufacturing orders and their status. The system provides live updates and notifications for production management teams.
 
 ## Key Features
-
-### Real-Time Production Dashboard
-- Live monitoring of production orders with automatic 15-second refresh intervals
-- New order notifications with browser pop-up alerts
-- Production status tracking (OK/Delay) for completed orders
-- Multi-language support (Vietnamese interface)
-
-### Database Integration
-- IBM DB2 connectivity for production data retrieval
-- ODBC driver support for flexible database connections
-- Configurable connection parameters and query limits
-- Support for multiple production lines (315, 312, 311, etc.)
-
-### Data Export and Reporting
-- CSV export functionality for production reports
-- Bin information tracking and reporting
-- Configurable date ranges and production line filtering
-- Automated report generation with timestamp naming
-
-### Web Interface
-- Express.js-based web server with EJS templating
-- Responsive dashboard design for production floor displays
-- Real-time data updates without page refresh
-- Browser notification system for immediate alerts
+- **Real-time Order Tracking**: Displays new production orders that need to be manufactured today
+- **Status Monitoring**: Shows completion status (OK/Delay) for recently completed orders from the last 7 days
+- **Automatic Notifications**: Browser push notifications when new orders arrive
+- **Live Data Updates**: Automatic refresh every 15 seconds to keep information current
+- **Bin Information Display**: TRZ50 data showing production bin details and allocations
+- **Production Reports**: Complex production reporting with estimated vs actual completion dates
+- **CSV Export**: Export functionality for both TRZ50 and production report data
+- **Multi-view Dashboard**: Different dashboard layouts for various monitoring needs
 
 ## Target Users
-
-### Production Managers
-- Monitor overall production performance across multiple lines
-- Track order completion status and identify delays
-- Access historical production data for analysis
-
-### Line Operators
-- Receive immediate notifications for new production orders
-- View current production queue and priorities
-- Monitor line-specific performance metrics
-
-### Quality Control Teams
-- Access bin information and production tracking data
-- Generate reports for compliance and analysis
-- Monitor production status for quality checkpoints
+- **Production Managers**: Monitor overall production status and identify delays
+- **Manufacturing Teams**: Track daily production orders and priorities
+- **Quality Control**: Review completion status and identify problematic orders
+- **Operations Staff**: Real-time visibility into production pipeline
 
 ## Use Cases
+- Daily production planning and scheduling
+- Real-time monitoring of manufacturing progress
+- Delay identification and management
+- Production data export for reporting and analysis
+- Cross-team communication about order status
+- Historical production performance tracking
 
-### Daily Production Monitoring
-- Track new orders requiring production attention
-- Monitor completion status of recent orders
-- Identify production delays and bottlenecks
-
-### Production Line Management
-- Configure monitoring for specific production lines
-- Set custom date ranges for historical analysis
-- Export production data for external reporting
-
-### Alert Management
-- Receive browser notifications for new production orders
-- Monitor critical production events in real-time
-- Maintain visibility across multiple production shifts
+## Value Proposition
+Eliminates manual checking of production systems by providing a centralized, real-time view of all production activities with proactive notifications for immediate action items.

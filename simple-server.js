@@ -43,10 +43,9 @@ app.get('/api/dashboard/stats', async (req, res) => {
                 COUNT(*) AS TOTAL_PRS,
                 COUNT(CASE WHEN A.PCPU9D IS NOT NULL AND A.PCPU9D > A.EPFU9D THEN 1 END) AS DELAYED_PRS,
                 COUNT(CASE WHEN (A.PCPU9D IS NULL OR A.PCPU9D = 0) THEN 1 END) AS INCOMPLETE_PRS,
-                SUM(A.PSCQ9D) AS TOTAL_QTY,
-                SUM(COALESCE(A.PCPQ9D, 0)) AS TOTAL_COMP
+                COUNT(CASE WHEN A.PCPU9D IS NOT NULL AND A.PCPU9D > 0 THEN 1 END) AS COMPLETED_PRS
             FROM (
-                SELECT DISTINCT A.PSHN9D, A.PCPU9D, A.EPFU9D, A.PSCQ9D, A.PCPQ9D
+                SELECT DISTINCT A.PSHN9D, A.PCPU9D, A.EPFU9D
                 FROM WAVEDLIB.F9D00 AS A
                 WHERE A.PSDU9D BETWEEN ? AND ? AND SUBSTRING(A.LN1C9D,1,3) = ? AND A.PSDU9D > 0
             ) AS A
@@ -59,12 +58,12 @@ app.get('/api/dashboard/stats', async (req, res) => {
 
         
         const delayRate = stats.TOTAL_PRS > 0 ? Math.round((stats.DELAYED_PRS / stats.TOTAL_PRS) * 100) : 0;
-        const fulfillmentRate = stats.TOTAL_QTY > 0 ? Math.round((stats.TOTAL_COMP / stats.TOTAL_QTY) * 100) : 0;
+        const completionRate = stats.TOTAL_PRS > 0 ? Math.round((stats.COMPLETED_PRS / stats.TOTAL_PRS) * 100) : 0;
         
         res.json({
             totalPrs: stats.TOTAL_PRS || 0,
             delayRate: `${delayRate}%`,
-            fulfillmentRate: `${fulfillmentRate}%`,
+            fulfillmentRate: `${completionRate}%`,
             incompletePrs: stats.INCOMPLETE_PRS || 0
         });
     } catch (error) {

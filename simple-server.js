@@ -34,20 +34,25 @@ app.get('/test', (req, res) => {
 // =================================================================
 app.get('/api/dashboard/stats', async (req, res) => {
     try {
-        const { year, month } = req.query;
+        const { year, month, filter } = req.query;
         const startDate = `${year}${month.padStart(2, '0')}01`;
         const endDate = `${year}${month.padStart(2, '0')}31`;
+        
+        let sampleFilter = '';
+        if (filter === 'sample') {
+            sampleFilter = "AND (A.LN2C9D = '91' OR A.LN2C9D = '92')";
+        }
         
         const statsQuery = `
             SELECT 
                 COUNT(*) AS TOTAL_PRS,
                 COUNT(CASE WHEN A.PCPU9D IS NOT NULL AND A.PCPU9D > A.EPFU9D THEN 1 END) AS DELAYED_PRS,
                 COUNT(CASE WHEN (A.PCPU9D IS NULL OR A.PCPU9D = 0) THEN 1 END) AS INCOMPLETE_PRS,
-                COUNT(CASE WHEN A.PCPU9D IS NOT NULL AND A.PCPU9D > 0 THEN 1 END) AS COMPLETED_PRS
+                COUNT(CASE WHEN A.PCPU9D IS NOT NULL AND A.PCPU9D > 0 AND A.PCPU9D <= A.EPFU9D THEN 1 END) AS ONTIME_PRS
             FROM (
                 SELECT DISTINCT A.PSHN9D, A.PCPU9D, A.EPFU9D
                 FROM WAVEDLIB.F9D00 AS A
-                WHERE A.PSDU9D BETWEEN ? AND ? AND SUBSTRING(A.LN1C9D,1,3) = ? AND A.PSDU9D > 0
+                WHERE A.PSDU9D BETWEEN ? AND ? AND SUBSTRING(A.LN1C9D,1,3) = ? AND A.PSDU9D > 0 ${sampleFilter}
             ) AS A
         `.replace(/\n\s+/g, ' ').trim();
         
@@ -55,10 +60,8 @@ app.get('/api/dashboard/stats', async (req, res) => {
         const results = await executeQuery(statsQuery, params);
         const stats = results[0] || {};
         
-
-        
         const delayRate = stats.TOTAL_PRS > 0 ? Math.round((stats.DELAYED_PRS / stats.TOTAL_PRS) * 100) : 0;
-        const completionRate = stats.TOTAL_PRS > 0 ? Math.round((stats.COMPLETED_PRS / stats.TOTAL_PRS) * 100) : 0;
+        const completionRate = stats.TOTAL_PRS > 0 ? Math.round((stats.ONTIME_PRS / stats.TOTAL_PRS) * 100) : 0;
         
         res.json({
             totalPrs: stats.TOTAL_PRS || 0,
@@ -128,11 +131,14 @@ app.get('/api/get-status/:pr', (req, res) => {
 
 app.get('/api/dashboard/calendar', async (req, res) => {
     try {
-        const { year, month } = req.query;
+        const { year, month, filter } = req.query;
         const startDate = `${year}${month.padStart(2, '0')}01`;
         const endDate = `${year}${month.padStart(2, '0')}31`;
         
-        console.log(`Calendar query: ${startDate} to ${endDate}`);
+        let sampleFilter = '';
+        if (filter === 'sample') {
+            sampleFilter = "AND (A.LN2C9D = '91' OR A.LN2C9D = '92')";
+        }
         
         const calendarQuery = `
             SELECT DISTINCT A.PSHN9D AS PR, A.ITMC9D AS ITEM, TRIM(IT1IA0) AS ITEM1, A.PSCQ9D AS QTY, 
@@ -141,14 +147,12 @@ app.get('/api/dashboard/calendar', async (req, res) => {
                    CASE WHEN A.PCPU9D IS NOT NULL AND A.PCPU9D > A.EPFU9D THEN 'DELAY' ELSE 'OK' END AS DELAY_DAY
             FROM WAVEDLIB.F9D00 AS A 
             INNER JOIN WAVEDLIB.FA000 ON A.ITMC9D = ITMCA0
-            WHERE A.PSDU9D BETWEEN ? AND ? AND SUBSTRING(A.LN1C9D,1,3) = ? AND A.PSDU9D > 0
+            WHERE A.PSDU9D BETWEEN ? AND ? AND SUBSTRING(A.LN1C9D,1,3) = ? AND A.PSDU9D > 0 ${sampleFilter}
             ORDER BY A.PSDU9D ASC
         `.replace(/\n\s+/g, ' ').trim();
         
         const params = [startDate, endDate, '315'];
-        console.log(`Calendar params: [${params.join(', ')}]`);
         const results = await executeQuery(calendarQuery, params);
-        console.log(`Calendar results: ${results.length} records`);
         
         // Remove duplicates by PR number, keep the first one
         const uniqueResults = [];
@@ -161,13 +165,9 @@ app.get('/api/dashboard/calendar', async (req, res) => {
             }
         }
         
-
-        
         const events = uniqueResults.map(row => {
             const startDateStr = String(row.START_D).padStart(8, '0');
             const formattedDate = `${startDateStr.substring(0, 4)}-${startDateStr.substring(4, 6)}-${startDateStr.substring(6, 8)}`;
-            
-
             
             function formatDbDate(dateNum) {
                 if (!dateNum) return 'N/A';
@@ -231,10 +231,6 @@ app.get('/api/dashboard/calendar', async (req, res) => {
 // =================================================================
 // == API Routes for Data Table Page
 // =================================================================
-
-
-
-
 
 // API để chạy Production Report query với parameters an toàn
 app.get('/api/production', async (req, res) => {

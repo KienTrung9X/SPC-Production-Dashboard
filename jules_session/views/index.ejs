@@ -497,106 +497,276 @@
     </main>
 
     <script>
+        // === STATE MANAGEMENT ===
+        let trz50Data = [];
+        let lastKnownTimestamp = null; // ISO String format
+        let pollingInterval = null;
         let isLoading = false;
 
-        async function fetchData(url, tableId, noDataId, processFn, countId) {
-            if (isLoading) return;
-            
-            try {
-                isLoading = true;
-                const btn = event?.target;
-                if (btn) {
-                    btn.innerHTML = '<div class="spinner"></div> Loading...';
-                    btn.disabled = true;
-                }
+        // === CONSTANTS ===
+        const STORAGE_KEY_DATA = 'trz50_cached_data';
+        const STORAGE_KEY_TIMESTAMP = 'trz50_last_timestamp';
 
-                const response = await fetch(url);
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                const data = await response.json();
-                processFn(data, tableId, noDataId, countId);
-            } catch (error) {
-                console.error(`Lỗi khi tải dữ liệu từ ${url}:`, error);
-                showError(error.message);
-            } finally {
-                isLoading = false;
-                const btn = event?.target;
-                if (btn) {
-                    btn.disabled = false;
-                    if (btn.textContent.includes('TRZ50')) {
-                        btn.innerHTML = '<i class="fas fa-search"></i> Load TRZ50';
-                    } else {
-                        btn.innerHTML = '<i class="fas fa-industry"></i> Load Production';
-                    }
-                }
+        // === CORE LOGIC ===
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeDashboard();
+        });
+
+        function initializeDashboard() {
+            console.log('Initializing dashboard...');
+            const cachedData = localStorage.getItem(STORAGE_KEY_DATA);
+            const cachedTimestamp = localStorage.getItem(STORAGE_KEY_TIMESTAMP);
+
+            if (cachedData && cachedTimestamp) {
+                console.log('Found cached data. Rendering from localStorage.');
+                trz50Data = JSON.parse(cachedData);
+                lastKnownTimestamp = cachedTimestamp;
+
+                renderTRZ50Table(trz50Data); // Render the full cached table
+                checkForUpdates();      // Immediately check for updates since last visit
+                startPolling();         // Start the regular polling
+            } else {
+                console.log('No cached data. Waiting for user to load data.');
+                // Hiển thị thông báo ban đầu
+                const noDataEl = document.getElementById('no-trz50');
+                noDataEl.style.display = 'block';
+                noDataEl.innerHTML = '<i class="fas fa-inbox"></i><div>Click "Load TRZ50" to fetch data</div>';
             }
         }
 
-        function processTRZ50(data, tableId, noDataId, countId) {
-            const tableBody = document.querySelector(`#${tableId} tbody`);
-            const noDataEl = document.getElementById(noDataId);
-            const countEl = document.getElementById(countId);
+        async function loadTRZ50() {
+            if (isLoading) return;
+            console.log('Starting initial full load for TRZ50 data...');
             
-            tableBody.innerHTML = '';
+            const btn = document.querySelector('button[onclick="loadTRZ50()"]');
+            setLoadingState(btn, true, '<i class="fas fa-search"></i> Load TRZ50');
+
+            try {
+                const params = getFilterParams();
+                const url = `/api/trz50${params ? '?' + params : ''}`;
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const data = await response.json();
+                console.log(`Initial load successful with ${data.length} records.`);
+
+                trz50Data = data;
+                renderTRZ50Table(data);
+
+                const latestTimestamp = findLatestTimestamp(data);
+                if (latestTimestamp) {
+                    lastKnownTimestamp = latestTimestamp.toISOString();
+                    console.log(`New latest timestamp: ${lastKnownTimestamp}`);
+                    localStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(data));
+                    localStorage.setItem(STORAGE_KEY_TIMESTAMP, lastKnownTimestamp);
+                }
+
+                startPolling();
+            } catch (error) {
+                console.error('Error during initial load:', error);
+                showError(error.message);
+            } finally {
+                setLoadingState(btn, false, '<i class="fas fa-search"></i> Load TRZ50');
+            }
+        }
+
+        async function checkForUpdates() {
+            if (!lastKnownTimestamp || isLoading) {
+                console.log('Skipping update check (no timestamp or already loading).');
+                return;
+            }
+
+            console.log(`Checking for updates since ${lastKnownTimestamp}...`);
+            isLoading = true;
+
+            try {
+                const lineCode = document.getElementById('lineCode').value;
+                const url = `/api/trz50/updates?since=${lastKnownTimestamp}&lineCode=${lineCode}`;
+
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const newData = await response.json();
+                if (newData.length > 0) {
+                    console.log(`Found ${newData.length} new records.`);
+
+                    // Thêm record mới vào bảng và vào mảng data chính
+                    appendRowsToTRZ50Table(newData);
+                    trz50Data.push(...newData);
+
+                    // Cập nhật lại timestamp và lưu vào localStorage
+                    const latestTimestamp = findLatestTimestamp(newData);
+                    if (latestTimestamp) {
+                        lastKnownTimestamp = latestTimestamp.toISOString();
+                        console.log(`New latest timestamp updated to: ${lastKnownTimestamp}`);
+                        localStorage.setItem(STORAGE_KEY_TIMESTAMP, lastKnownTimestamp);
+                        localStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(trz50Data));
+                    }
+                } else {
+                    console.log('No new updates.');
+                }
+            } catch (error) {
+                console.error('Error checking for updates:', error);
+                // Không hiển thị lỗi cho người dùng để tránh làm phiền
+            } finally {
+                isLoading = false;
+            }
+        }
+
+        function startPolling() {
+            if (pollingInterval) clearInterval(pollingInterval);
+            console.log('Starting polling for updates every 60 seconds.');
+            pollingInterval = setInterval(checkForUpdates, 60000);
+        }
+
+        // === RENDERING LOGIC ===
+        function renderTRZ50Table(data) {
+            const tableBody = document.querySelector('#trz50-table tbody');
+            const noDataEl = document.getElementById('no-trz50');
+            const countEl = document.getElementById('trz50-count');
+
+            tableBody.innerHTML = ''; // Xóa toàn bộ bảng cũ
             countEl.textContent = data.length;
-            
+
             if (data.length === 0) {
                 noDataEl.style.display = 'block';
                 noDataEl.innerHTML = '<i class="fas fa-exclamation-circle"></i><div>No TRZ50 data found</div>';
                 return;
             }
-
             noDataEl.style.display = 'none';
+            appendRowsToTRZ50Table(data); // Dùng hàm append để vẽ
+        }
 
-            data.forEach((row, index) => {
+        function appendRowsToTRZ50Table(rows) {
+            const tableBody = document.querySelector('#trz50-table tbody');
+            const noDataEl = document.getElementById('no-trz50');
+            const countEl = document.getElementById('trz50-count');
+
+            if (tableBody.children.length === 0 && rows.length > 0) {
+                 noDataEl.style.display = 'none';
+            }
+
+            rows.forEach((row, index) => {
                 const tr = document.createElement('tr');
-                tr.style.animationDelay = `${index * 0.05}s`;
                 tr.className = 'fade-in';
                 tr.innerHTML = `
-                    <td>${formatDate(row.epfurz) || ''}</td>
-                    <td><strong>${row.pshnrz || ''}</strong></td>
-                    <td><code>${row.itmcrz || ''}</code></td>
-                    <td>${row.it1ia0 || ''}</td>
-                    <td><span class="status-badge status-ontime">${row.alcqrz || ''}</span></td>
-                    <td><span class="status-badge status-completed">${row.msacrz || ''}</span></td>
-                    <td>${row.bktnrz || row.wabcrz || ''}</td>
+                    <td>${formatDate(row.RADURZ) || ''} ${formatTime(row.RADTRZ) || ''}</td>
+                    <td><strong>${row.PSHNRZ || ''}</strong></td>
+                    <td><code>${row.ITMCRZ || ''}</code></td>
+                    <td>${row.IT1IA0 || ''}</td>
+                    <td><span class="status-badge status-ontime">${row.ALCQRZ || ''}</span></td>
+                    <td><span class="status-badge status-completed">${row.MSACRZ || ''}</span></td>
+                    <td>${row.BKTNRZ || row.WABCRZ || ''}</td>
                 `;
-                tableBody.appendChild(tr);
+                tableBody.insertBefore(tr, tableBody.firstChild); // Thêm vào đầu bảng
             });
+             // We update the total count based on the number of rows in the table body
+            countEl.textContent = tableBody.children.length;
+        }
+
+        // === HELPER FUNCTIONS ===
+        function parseDbTimestamp(date, time) {
+            const dateStr = String(date);
+            const timeStr = ('000000' + time).slice(-6);
+            if (dateStr.length < 8) return null;
+
+            const year = dateStr.substring(0, 4);
+            const month = dateStr.substring(4, 6);
+            const day = dateStr.substring(6, 8);
+            const hour = timeStr.substring(0, 2);
+            const minute = timeStr.substring(2, 4);
+            const second = timeStr.substring(4, 6);
+            return new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}`);
+        }
+
+        function findLatestTimestamp(data) {
+            if (!data || data.length === 0) return null;
+            return data.reduce((latest, current) => {
+                const currentDate = parseDbTimestamp(current.RADURZ, current.RADTRZ);
+                if (!currentDate) return latest;
+                return currentDate > latest ? currentDate : latest;
+            }, new Date(0));
+        }
+
+        function setLoadingState(button, loading, originalContent) {
+            isLoading = loading;
+            if (button) {
+                button.disabled = loading;
+                button.innerHTML = loading ? '<div class="spinner"></div> Loading...' : originalContent;
+            }
+        }
+
+        function getFilterParams() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            const lineCode = document.getElementById('lineCode').value;
+            const rowLimit = document.getElementById('rowLimit').value;
+            const params = new URLSearchParams();
+            if (startDate) params.append('startDate', startDate);
+            if (endDate) params.append('endDate', endDate);
+            if (lineCode) params.append('lineCode', lineCode);
+            if (rowLimit) params.append('rowLimit', rowLimit);
+            return params.toString();
+        }
+
+        function formatDate(dateNum) {
+            if (!dateNum) return '';
+            const dateStr = String(dateNum);
+            if (dateStr.length !== 8) return dateStr;
+            return `${dateStr.substring(6, 8)}/${dateStr.substring(4, 6)}/${dateStr.substring(0, 4)}`;
+        }
+
+        function formatTime(timeNum) {
+            if (timeNum === undefined || timeNum === null) return '';
+            const timeStr = ('000000' + timeNum).slice(-6);
+            return `${timeStr.substring(0, 2)}:${timeStr.substring(2, 4)}:${timeStr.substring(4, 6)}`;
+        }
+
+        function showError(message) {
+            alert(`Error: ${message}`);
+        }
+
+        function exportData(type) {
+            window.open(`/api/export/${type}`, '_blank');
+        }
+
+        // --- Production Report Logic (Unchanged) ---
+        async function loadProduction() {
+            const params = getFilterParams();
+            const url = `/api/production${params ? '?' + params : ''}`;
+            const btn = event?.target;
+            setLoadingState(btn, true, '<i class="fas fa-industry"></i> Load Production');
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+                processProduction(data, 'production-table', 'no-production', 'production-count');
+            } catch (error) {
+                showError(error.message)
+            } finally {
+                setLoadingState(btn, false, '<i class="fas fa-industry"></i> Load Production');
+            }
         }
 
         function processProduction(data, tableId, noDataId, countId) {
             const tableBody = document.querySelector(`#${tableId} tbody`);
             const noDataEl = document.getElementById(noDataId);
             const countEl = document.getElementById(countId);
-            
             tableBody.innerHTML = '';
             countEl.textContent = data.length;
-            
             if (data.length === 0) {
                 noDataEl.style.display = 'block';
                 noDataEl.innerHTML = '<i class="fas fa-exclamation-circle"></i><div>No production data found</div>';
                 return;
             }
-
             noDataEl.style.display = 'none';
-
             data.forEach((row, index) => {
                 const tr = document.createElement('tr');
                 tr.style.animationDelay = `${index * 0.05}s`;
                 tr.className = 'fade-in';
-                
                 let statusClass = 'status-completed';
-                let statusIcon = 'fas fa-check-circle';
-                if (row.delay_day === 'DELAY') {
-                    statusClass = 'status-delay';
-                    statusIcon = 'fas fa-exclamation-triangle';
-                } else if (row.delay_day === 'ONTIME') {
-                    statusClass = 'status-ontime';
-                    statusIcon = 'fas fa-clock';
-                }
-                
+                if (row.delay_day === 'DELAY') statusClass = 'status-delay';
+                else if (row.delay_day === 'ONTIME') statusClass = 'status-ontime';
                 tr.innerHTML = `
                     <td><strong>${row.line || ''}</strong></td>
                     <td><strong>${row.pr || ''}</strong></td>
@@ -605,66 +775,11 @@
                     <td><span class="status-badge status-ontime">${row.qty || ''}</span></td>
                     <td>${formatDate(row.est_com_d) || ''}</td>
                     <td>${formatDate(row.act_com_d) || ''}</td>
-                    <td><span class="status-badge ${statusClass}"><i class="${statusIcon}"></i> ${row.com_status || ''}</span></td>
+                    <td><span class="status-badge ${statusClass}">${row.com_status || ''}</span></td>
                 `;
                 tableBody.appendChild(tr);
             });
         }
-
-        function formatDate(dateStr) {
-            if (!dateStr || dateStr.length !== 8) return dateStr;
-            const year = dateStr.substring(0, 4);
-            const month = dateStr.substring(4, 6);
-            const day = dateStr.substring(6, 8);
-            return `${day}/${month}/${year}`;
-        }
-
-        function showError(message) {
-            // Simple error display - could be enhanced with a toast notification
-            alert(`Error: ${message}`);
-        }
-
-        function getFilterParams() {
-            const startDate = document.getElementById('startDate').value;
-            const endDate = document.getElementById('endDate').value;
-            const lineCode = document.getElementById('lineCode').value;
-            const rowLimit = document.getElementById('rowLimit').value;
-            
-            console.log('Filter values:', { startDate, endDate, lineCode, rowLimit });
-            
-            const params = new URLSearchParams();
-            if (startDate) params.append('startDate', startDate);
-            if (endDate) params.append('endDate', endDate);
-            if (lineCode) params.append('lineCode', lineCode);
-            if (rowLimit) params.append('rowLimit', rowLimit);
-            
-            const paramString = params.toString();
-            console.log('URL params:', paramString);
-            
-            return paramString;
-        }
-
-        function loadTRZ50() {
-            const params = getFilterParams();
-            const url = `/api/trz50${params ? '?' + params : ''}`;
-            console.log('TRZ50 URL:', url);
-            fetchData(url, 'trz50-table', 'no-trz50', processTRZ50, 'trz50-count');
-        }
-
-        function loadProduction() {
-            const params = getFilterParams();
-            const url = `/api/production${params ? '?' + params : ''}`;
-            fetchData(url, 'production-table', 'no-production', processProduction, 'production-count');
-        }
-
-        function exportData(type) {
-            window.open(`/api/export/${type}`, '_blank');
-        }
-
-        document.addEventListener('DOMContentLoaded', function() {
-            // Don't auto-load data on startup
-            console.log('Dashboard ready - use buttons to load data');
-        });
     </script>
 </body>
 </html>

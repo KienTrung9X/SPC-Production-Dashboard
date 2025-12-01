@@ -21,28 +21,24 @@ app.get('/', (req, res) => {
 // Connection string cho ODBC
 const connStr = `DRIVER={IBM i Access ODBC Driver};SYSTEM=${config.hostname};UID=${config.uid};PWD=${config.pwd};DBQ=WAVEDLIB;`;
 
-// API để chạy TRZ50 query với parameters
+// API để chạy TRZ50 query với parameters an toàn
 app.get('/api/trz50', async (req, res) => {
     try {
         const { startDate, endDate, lineCode, rowLimit } = req.query;
         
-        console.log('TRZ50 Parameters:', { startDate, endDate, lineCode, rowLimit });
+        // Gán giá trị mặc định nếu thiếu
+        const p_startDate = startDate ? startDate.replace(/-/g, '') : config.startDate;
+        const p_endDate = endDate ? endDate.replace(/-/g, '') : config.endDate;
+        const p_lineCode = lineCode || config.lineCode;
+        const p_rowLimit = parseInt(rowLimit || config.rowLimit, 10);
+
+        const sqlQuery = binQueries.trz50;
+        const queryParams = [p_lineCode, p_startDate, p_endDate, p_rowLimit];
+
+        console.log('Executing TRZ50 query with params:', queryParams);
         
-        // Tạo parameters
-        const params = {
-            startDate: startDate ? startDate.replace(/-/g, '') : config.startDate,
-            endDate: endDate ? endDate.replace(/-/g, '') : config.endDate,
-            lineCode: lineCode || config.lineCode,
-            rowLimit: rowLimit || config.rowLimit
-        };
-        
-        // Tạo SQL query
-        const sqlQuery = binQueries.trz50(params);
-        console.log('Executing TRZ50 query...');
-        
-        // Kết nối và chạy query
         const connection = await odbc.connect(connStr);
-        const result = await connection.query(sqlQuery);
+        const result = await connection.query(sqlQuery, queryParams);
         await connection.close();
         
         console.log(`TRZ50 completed: ${result.length} records`);
@@ -50,6 +46,41 @@ app.get('/api/trz50', async (req, res) => {
     } catch (error) {
         console.error('Lỗi TRZ50:', error);
         res.status(500).json({ error: `Lỗi khi chạy TRZ50 query: ${error.message}` });
+    }
+});
+
+// API mới để chỉ lấy updates cho TRZ50 một cách an toàn
+app.get('/api/trz50/updates', async (req, res) => {
+    try {
+        const { since, lineCode } = req.query;
+
+        if (!since || !lineCode) {
+            return res.status(400).json({ error: 'Thiếu parameters "since" hoặc "lineCode"' });
+        }
+
+        const sinceDateObj = new Date(since);
+        const p_sinceDate = sinceDateObj.getFullYear().toString() +
+                        ('0' + (sinceDateObj.getMonth() + 1)).slice(-2) +
+                        ('0' + sinceDateObj.getDate()).slice(-2);
+        const p_sinceTime = ('0' + sinceDateObj.getHours()).slice(-2) +
+                        ('0' + sinceDateObj.getMinutes()).slice(-2) +
+                        ('0' + sinceDateObj.getSeconds()).slice(-2);
+
+        const sqlQuery = binQueries.trz50Updates;
+        const queryParams = [lineCode, p_sinceDate, p_sinceDate, p_sinceTime];
+
+        console.log('Executing TRZ50 updates query with params:', queryParams);
+
+        const connection = await odbc.connect(connStr);
+        const result = await connection.query(sqlQuery, queryParams);
+        await connection.close();
+
+        console.log(`TRZ50 updates found: ${result.length} new records`);
+        res.json(result);
+
+    } catch (error) {
+        console.error('Lỗi TRZ50 Updates:', error);
+        res.status(500).json({ error: `Lỗi khi chạy TRZ50 updates query: ${error.message}` });
     }
 });
 

@@ -1,23 +1,19 @@
 @echo off
-REM Health monitoring script for SPC Dashboard
+:monitor_loop
+timeout /t 30 /nobreak >nul
 
-:MONITOR
-timeout /t 60 /nobreak >nul
-
-REM Check if PM2 process is running
-pm2 list | findstr "online" >nul
+REM Check if app is running
+pm2 jlist | findstr "SPC-Dashboard" | findstr "online" >nul
 if errorlevel 1 (
-    echo [%date% %time%] PM2 process not online, restarting...
+    echo [%date% %time%] ALERT: SPC Dashboard is DOWN! >> health-monitor.log
+    
+    echo [%date% %time%] ALERT: SPC Dashboard is DOWN! >> health-monitor.log
+    
+    REM Try to restart
     pm2 restart SPC-Dashboard
-    timeout /t 10 /nobreak >nul
+    echo [%date% %time%] Attempted restart >> health-monitor.log
+) else (
+    echo [%date% %time%] SPC Dashboard is running normally >> health-monitor.log
 )
 
-REM Check HTTP response
-powershell -Command "try { $response = Invoke-WebRequest -Uri 'http://localhost:3001' -TimeoutSec 10; if($response.StatusCode -eq 200) { exit 0 } else { exit 1 } } catch { exit 1 }" >nul 2>&1
-if errorlevel 1 (
-    echo [%date% %time%] App not responding, restarting...
-    pm2 restart SPC-Dashboard
-    timeout /t 15 /nobreak >nul
-)
-
-goto MONITOR
+goto monitor_loop

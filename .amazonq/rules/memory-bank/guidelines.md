@@ -1,142 +1,85 @@
-# SPC Production Dashboard - Development Guidelines
+# Development Guidelines
 
 ## Code Quality Standards
 
-### File Organization Patterns
-- **Modular SQL Queries**: SQL queries are separated into dedicated modules (`SQLcode/` directory) with descriptive filenames
-- **Configuration Centralization**: Database and application settings centralized in `config.js` with clear parameter documentation
-- **Server Variants**: Multiple server implementations (server.js, simple-server.js) for different deployment scenarios
-- **Output Directory**: Dedicated `/output/` directory for generated files and exports
+### File Structure and Organization
+- **Modular Architecture**: Separate SQL queries into dedicated modules (SQLcode/ directory)
+- **Configuration Management**: Centralized config.js for database connections and parameters
+- **Process Management**: Use ecosystem.config.js for PM2 deployment configuration
+- **Logging Strategy**: Structured logging with separate error and output files in logs/ directory
 
 ### Naming Conventions
-- **File Names**: Use kebab-case for view templates (`dashboard-simple.ejs`, `simple-test.ejs`)
-- **Variable Names**: Use camelCase for JavaScript variables (`formattedStartDate`, `currentLineCode`)
-- **Database Fields**: Preserve original DB2 field names in uppercase (`PSHN9D`, `ITMC9D`, `EPFU9D`)
-- **API Endpoints**: Use descriptive REST-style paths (`/api/dashboard/stats`, `/api/production/updates`)
+- **Variables**: Use camelCase for JavaScript variables (startDate, endDate, lineCode)
+- **Constants**: Use UPPERCASE for SQL column aliases (TOTAL_PRS, DELAYED_PRS, ONTIME_PRS)
+- **Files**: Use kebab-case for batch files (setup-pm2-server.bat, setup-startup.bat)
+- **Database Fields**: Preserve original DB2 field names in uppercase (PSHN9D, ITMC9D, PCPU9D)
 
 ### Error Handling Patterns
 ```javascript
-// Standard async/await error handling with descriptive messages
+// Standard async/await error handling
 try {
-    const connection = await odbc.connect(connStr);
-    const result = await connection.query(sql, params);
-    await connection.close();
-    return result;
+    const result = await executeQuery(sql, params);
+    res.json(result);
 } catch (error) {
-    console.error('Lỗi Production:', error);
-    res.status(500).json({ error: `Lỗi khi lấy dữ liệu: ${error.message}` });
+    console.error('Descriptive error message:', error);
+    res.status(500).json({ error: `User-friendly message: ${error.message}` });
 }
 ```
 
-## Database Integration Standards
+### Database Connection Management
+- **Connection Pooling**: Always close ODBC connections in finally blocks
+- **Parameterized Queries**: Use parameter arrays to prevent SQL injection
+- **Connection String**: Use environment variables or config.js for database credentials
 
-### Connection Management
-- **Connection String Format**: Use DSN-based ODBC connections with parameterized credentials
-- **Connection Lifecycle**: Always close connections in finally blocks or after query completion
-- **Environment Variables**: Support environment variable overrides for sensitive configuration
+## Semantic Patterns
 
-### Query Parameterization
+### API Route Structure
+- **RESTful Endpoints**: Follow /api/resource/action pattern
+- **Query Parameters**: Use consistent parameter names (startDate, endDate, lineCode, rowLimit)
+- **Response Format**: Standardize JSON responses with error handling
+
+### SQL Query Patterns
+- **Complex Joins**: Use LEFT JOIN for optional relationships, INNER JOIN for required data
+- **Parameterized Queries**: Replace direct string concatenation with parameter placeholders (?)
+- **Query Organization**: Group related queries in modules with descriptive names
+- **Performance Optimization**: Use FETCH FIRST n ROWS ONLY for pagination
+
+### Data Processing Patterns
 ```javascript
-// Always use parameterized queries for security
-const params = [startDate, endDate, lineCode];
-const result = await executeQuery(prodReportQueries.productionReportComplex, params);
+// Remove duplicates by key field
+const uniqueResults = [];
+const seenKeys = new Set();
+for (const row of results) {
+    if (!seenKeys.has(row.KEY_FIELD)) {
+        seenKeys.add(row.KEY_FIELD);
+        uniqueResults.push(row);
+    }
+}
 ```
 
-### SQL Query Organization
-- **Template Literals**: Use template literals for complex multi-line SQL with `.replace(/\\n\\s+/g, ' ').trim()`
-- **Parameter Functions**: Support both static queries and parameterized query functions
-- **Query Modules**: Export query objects with descriptive method names
+### Date Formatting Standards
+- **Database Dates**: Store as YYYYMMDD integer format (20250101)
+- **Display Dates**: Format as DD/MM/YYYY for Vietnamese locale
+- **API Dates**: Accept ISO format (YYYY-MM-DD) and convert to database format
 
-## API Design Patterns
-
-### Route Organization
-```javascript
-// Group routes by functionality with clear section comments
-// =================================================================
-// == API Routes for Dashboard
-// =================================================================
-app.get('/api/dashboard/stats', async (req, res) => {
-    // Implementation
-});
-```
-
-### Response Formatting
-- **Consistent JSON Structure**: Always return structured JSON with error handling
-- **Data Transformation**: Transform database field names to user-friendly formats
-- **Duplicate Removal**: Implement deduplication logic for database results
+### Configuration Management
+- **Environment Variables**: Prioritize environment variables over hardcoded values
+- **Default Values**: Provide fallback values in config.js
+- **Parameter Validation**: Validate and sanitize input parameters
 
 ### File Operations
-```javascript
-// CSV export with proper headers and encoding
-res.header('Content-Type', 'text/csv; charset=utf-8');
-res.attachment(`production_${timestamp}.csv`);
-```
+- **CSV Export**: Use proper escaping for CSV fields containing commas or quotes
+- **Directory Management**: Create output directories if they don't exist
+- **File Naming**: Include timestamps in generated file names
 
-## Frontend Integration
+### Process Management
+- **PM2 Configuration**: Use ecosystem.config.js for production deployment
+- **Memory Management**: Set max_memory_restart limits
+- **Auto-restart**: Configure autorestart with reasonable limits
+- **Log Rotation**: Implement proper log file management
 
-### Template Engine Usage
-- **EJS Templates**: Use EJS for server-side rendering with descriptive template names
-- **Static Assets**: Serve static files from `/public/` directory
-- **View Organization**: Separate templates by functionality in `/views/` directory
-
-### Real-time Updates
-- **Polling Pattern**: Implement client-side polling every 15 seconds for live data
-- **Browser Notifications**: Integrate browser notification API for new order alerts
-- **Calendar Integration**: Use FullCalendar or similar libraries for production scheduling
-
-## Configuration Management
-
-### Environment Configuration
-```javascript
-// Support both config file and environment variables
-const connStr = process.env.DB_CONN_STR || 
-    `DSN=WAVEDLIB_HN;UID=${config.uid};SYSTEM=${config.hostname};...`;
-```
-
-### Parameter Documentation
-```javascript
-// Clear parameter documentation with examples
-const config = {
-    startDate: 20250101,  // Ngày bắt đầu (YYYYMMDD)
-    endDate: 20251231,    // Ngày kết thúc (YYYYMMDD)
-    lineCode: '315',      // Mã dây chuyền (315, 312, 311, v.v.)
-    rowLimit: 10000000    // Số bản ghi tối đa
-};
-```
-
-## Performance Optimization
-
-### Query Optimization
-- **FETCH FIRST**: Use `FETCH FIRST n ROWS ONLY` for result limiting
-- **Indexed Filtering**: Filter by indexed fields like date ranges and line codes
-- **JOIN Optimization**: Use appropriate JOIN types (LEFT JOIN, INNER JOIN) based on data relationships
-
-### Memory Management
-- **Connection Pooling**: Close database connections promptly to prevent resource leaks
-- **Result Deduplication**: Remove duplicate records at application level when needed
-- **Streaming for Large Exports**: Use streaming for large CSV exports
-
-## Security Practices
-
-### Input Validation
-- **Parameterized Queries**: Always use parameterized queries to prevent SQL injection
-- **Input Sanitization**: Validate and sanitize user inputs before processing
-- **Environment Variables**: Store sensitive credentials in environment variables
-
-### Error Information
-- **Generic Error Messages**: Return generic error messages to clients while logging detailed errors server-side
-- **Credential Protection**: Never expose database credentials in error messages or logs
-
-## Testing and Debugging
-
-### Console Logging
-```javascript
-// Structured logging with clear prefixes
-console.log(`📋 Parameters:`);
-console.log(`  • Start Date: ${dynamicConfig.startDate}`);
-console.log(`✓ Thành công: ${results.length} bản ghi → ${filename}`);
-```
-
-### Command Line Interface
-- **Argument Parsing**: Support command-line parameters for batch operations
-- **Help Documentation**: Provide clear usage examples and parameter descriptions
+### Frontend Integration
+- **Real-time Updates**: Use polling mechanism with 15-second intervals
+- **Notification System**: Implement browser push notifications for new orders
+- **Status Management**: Maintain local status files for order tracking
+- **Calendar Integration**: Format data for FullCalendar.js compatibility

@@ -28,7 +28,7 @@
         .stat-label { font-size: 0.75rem; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.05em; }
         .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
         .filters { background: linear-gradient(135deg, rgba(255,255,255,0.95), rgba(248,250,252,0.95)); backdrop-filter: blur(10px); border-radius: 1rem; padding: 2rem; margin-bottom: 2rem; box-shadow: 0 8px 32px rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.2); }
-        .filters-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; align-items: end; }
+        .filters-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; align-items: start; }
         .filter-group { display: flex; flex-direction: column; gap: 0.5rem; }
         .filter-label { font-size: 0.875rem; font-weight: 500; color: var(--text-color); }
         .filter-input { padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 0.5rem; font-size: 0.875rem; transition: all 0.2s; }
@@ -114,9 +114,12 @@
 
 
                 <div class="filter-group">
+                    <label class="filter-label">Actions</label>
                     <button class="btn btn-primary" id="load-production-btn"><i class="fas fa-sync"></i> Load from Server</button>
+                    <div id="auto-refresh-status" style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem; display: none;">🔄 Auto-refresh: 10s</div>
                 </div>
                 <div class="filter-group">
+                    <label class="filter-label">Navigation</label>
                     <div style="display: flex; gap: 0.5rem;">
                         <button class="btn btn-secondary" id="prev-page-btn"><i class="fas fa-arrow-left"></i> Previous</button>
                         <button class="btn btn-secondary" id="next-page-btn"><i class="fas fa-arrow-right"></i> Next</button>
@@ -184,15 +187,16 @@
                 this.startPolling();
             } else {
                 console.log('No cache found, loading from server');
-                this.ui.noDataEl.innerHTML = `<i class="fas fa-inbox"></i><div>Click "Load ${this.config.name}" to fetch data from server</div>`;
+                this.performInitialLoad();
             }
+            this.setupEventListeners();
+        }
 
-            // Add load button event for manual refresh
+        setupEventListeners() {
             if (this.ui.loadBtn) {
                 this.ui.loadBtn.addEventListener('click', () => this.performInitialLoad());
             }
             
-            // Add pagination button events
             if (this.ui.nextBtn) {
                 this.ui.nextBtn.addEventListener('click', () => this.nextPage());
             }
@@ -200,17 +204,13 @@
                 this.ui.prevBtn.addEventListener('click', () => this.prevPage());
             }
             
-            // Only reload from server when fiscal year changes
             document.getElementById('fiscalYear').addEventListener('change', () => {
-                // Clear cache when fiscal year changes
                 localStorage.removeItem(this.config.storage.dataKey);
                 localStorage.removeItem(this.config.storage.timestampKey);
                 this.data = [];
                 this.lastTimestamp = null;
                 this.performInitialLoad();
             });
-            
-
         }
 
         async performInitialLoad() {
@@ -270,7 +270,21 @@
 
         startPolling() {
             if (this.pollingInterval) clearInterval(this.pollingInterval);
-            this.pollingInterval = setInterval(() => this.checkForUpdates(), 600000); // 10 minutes
+            document.getElementById('auto-refresh-status').style.display = 'block';
+            this.pollingInterval = setInterval(() => {
+                this.showRefreshIndicator();
+                this.checkForUpdates();
+            }, 10000); // 10 seconds
+        }
+
+        showRefreshIndicator() {
+            const status = document.getElementById('auto-refresh-status');
+            status.innerHTML = '🔄 Checking for updates...';
+            status.style.color = '#3b82f6';
+            setTimeout(() => {
+                status.innerHTML = '🔄 Auto-refresh: 10s';
+                status.style.color = '#64748b';
+            }, 1000);
         }
 
         updateAndCacheTimestamp(records) {

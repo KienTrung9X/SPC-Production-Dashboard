@@ -138,8 +138,22 @@
             window.open(`/api/export/${type}`, '_blank');
         }
 
-        // Auto-load TRZ50 on page load
-        window.onload = () => loadTRZ50();
+        // Auto-load TRZ50 on page load and refresh every 10 seconds
+        window.onload = () => {
+            loadTRZ50();
+            // Auto-refresh every 10 seconds
+            setInterval(() => {
+                // Refresh the currently displayed data
+                const trz50Count = document.getElementById('trz50-count').textContent;
+                const productionCount = document.getElementById('production-count').textContent;
+                
+                if (trz50Count !== '-') {
+                    loadTRZ50();
+                } else if (productionCount !== '-') {
+                    loadProduction();
+                }
+            }, 10000);
+        };
     </script>
 </body>
 </html>

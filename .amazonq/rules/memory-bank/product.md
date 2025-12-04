@@ -1,31 +1,27 @@
-# SPC Production Dashboard - Product Overview
+# Product Overview
 
 ## Project Purpose
-Real-time production order monitoring dashboard that connects to IBM DB2 database to track manufacturing orders and their status. The system provides live updates and notifications for production management teams.
+Real-time production order dashboard that monitors manufacturing orders from IBM DB2 database. Provides instant visibility into production status and automated notifications for new orders requiring immediate attention.
 
 ## Key Features
-- **Real-time Order Tracking**: Displays new production orders that need to be manufactured today
-- **Status Monitoring**: Shows completion status (OK/Delay) for recently completed orders from the last 7 days
-- **Automatic Notifications**: Browser push notifications when new orders arrive
-- **Live Data Updates**: Automatic refresh every 15 seconds to keep information current
-- **Bin Information Display**: TRZ50 data showing production bin details and allocations
-- **Production Reports**: Complex production reporting with estimated vs actual completion dates
-- **CSV Export**: Export functionality for both TRZ50 and production report data
-- **Multi-view Dashboard**: Different dashboard layouts for various monitoring needs
+- **Real-time Order Monitoring**: Displays new production orders that need to be manufactured today
+- **Status Tracking**: Shows completion status (OK/Delay) for recently finished orders from the last 7 days
+- **Automated Notifications**: Browser push notifications alert users when new orders arrive
+- **Auto-refresh Interface**: Data updates automatically every 15 seconds without manual refresh
+- **Dual Dashboard View**: Split interface showing both new orders and completed order status
 
 ## Target Users
-- **Production Managers**: Monitor overall production status and identify delays
-- **Manufacturing Teams**: Track daily production orders and priorities
-- **Quality Control**: Review completion status and identify problematic orders
-- **Operations Staff**: Real-time visibility into production pipeline
+- Production managers monitoring daily manufacturing schedules
+- Operations teams tracking order completion status
+- Manufacturing supervisors needing real-time production visibility
+- Quality control personnel monitoring order delays
 
 ## Use Cases
-- Daily production planning and scheduling
-- Real-time monitoring of manufacturing progress
-- Delay identification and management
-- Production data export for reporting and analysis
-- Cross-team communication about order status
-- Historical production performance tracking
+- **Daily Production Planning**: View all new orders requiring production today
+- **Status Monitoring**: Track which orders completed on time vs delayed
+- **Alert Management**: Receive immediate notifications for urgent new orders
+- **Performance Analysis**: Monitor production efficiency through completion status
+- **Operational Oversight**: Real-time dashboard for production floor management
 
 ## Value Proposition
-Eliminates manual checking of production systems by providing a centralized, real-time view of all production activities with proactive notifications for immediate action items.
+Eliminates manual database checking by providing automated, real-time production order visibility with instant notifications, enabling faster response times and improved production scheduling efficiency.

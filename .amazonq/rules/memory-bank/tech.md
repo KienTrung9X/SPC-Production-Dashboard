@@ -1,29 +1,26 @@
-# SPC Production Dashboard - Technology Stack
+# Technology Stack
 
 ## Programming Languages
-- **JavaScript (Node.js)** - Server-side runtime (version 14.x or higher required)
-- **HTML/CSS** - Frontend markup and styling
+- **JavaScript (Node.js)** - Server-side runtime environment
+- **HTML/CSS** - Frontend markup and styling within EJS templates
 - **SQL** - Database queries for IBM DB2
-- **EJS** - Embedded JavaScript templating
+- **Batch Scripts** - Windows deployment automation
 
 ## Core Dependencies
+- **express (^4.18.2)** - Web application framework
+- **ejs (^3.1.9)** - Embedded JavaScript templating engine
+- **odbc (^2.4.8)** - Database connectivity for IBM DB2
 
-### Production Dependencies
-- **express (^4.18.2)** - Web application framework for Node.js
-- **ejs (^3.1.9)** - Embedded JavaScript templates for server-side rendering
-- **odbc (^2.4.8)** - ODBC database driver for IBM DB2 connectivity
-
-### Development Dependencies
-- **playwright (^1.57.0)** - End-to-end testing framework
+## Development Dependencies
+- **playwright (^1.57.0)** - Browser automation for testing
 
 ## Database Technology
-- **IBM DB2** - Primary database system
-- **ODBC Driver** - Required for DB2 connectivity
-- **Connection String Format**: DSN-based connection with authentication
+- **IBM DB2** - Enterprise database system
+- **ODBC Driver** - Database connectivity layer
 
-## Build System
-- **npm** - Package manager and build tool
-- **package.json** - Dependency management and scripts
+## Process Management
+- **PM2** - Production process manager for Node.js applications
+- **Windows Services** - System-level service integration
 
 ## Development Commands
 
@@ -35,40 +32,25 @@ npm install
 ### Running the Application
 ```bash
 npm start          # Runs simple-server.js
-node server.js     # Runs full-featured server
-node simple-server.js  # Runs simplified server
+node server.js     # Runs full server with complete dashboard
+node simple-server.js  # Runs simplified version
 ```
 
-### Testing
+### PM2 Process Management
 ```bash
-npm test           # Currently returns error - no tests specified
+pm2 start ecosystem.config.js  # Start with PM2 configuration
+pm2 resurrect                  # Restore saved PM2 processes
+pm2 list                       # Show running processes
+pm2 logs                       # View application logs
 ```
 
-## Environment Configuration
+## System Requirements
+- **Node.js**: Version 14.x or higher
+- **npm**: Package manager (included with Node.js)
+- **ODBC Driver**: IBM DB2 ODBC driver
+- **Windows OS**: Batch scripts designed for Windows environment
 
-### Required Environment Variables
-- **DB_CONN_STR** - Database connection string (optional, falls back to config.js)
-- **PORT** - Server port (defaults to 3000)
-
-### Database Configuration
-- **DSN**: WAVEDLIB_HN
-- **Database**: Configurable via config.js
-- **Authentication**: UID-based authentication
-- **Connection Type**: ODBC Type 2
-
-## Runtime Requirements
-- **Node.js Runtime**: Version 14.x or higher
-- **ODBC Driver**: IBM DB2 ODBC driver must be installed
-- **Network Access**: Connection to IBM DB2 database server
-- **Browser Support**: Modern browsers with notification API support
-
-## Deployment Considerations
-- **Port Configuration**: Configurable via environment variable
-- **Database Security**: Connection credentials should use environment variables
-- **Static Assets**: Served from public directory (if configured)
-- **Session Management**: Basic session handling in jules_session implementation
-
-## File Formats
-- **JSON** - Configuration and data exchange
-- **CSV** - Data export format
-- **EJS** - Template files for server-side rendering
+## Configuration
+- **Environment Variables**: DB_CONN_STR for database connection
+- **Port Configuration**: Default port 3000 (configurable)
+- **Database Connection**: ODBC connection string in config.js

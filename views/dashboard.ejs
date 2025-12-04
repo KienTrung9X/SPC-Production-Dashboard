@@ -157,6 +157,12 @@
             calendar.render();
             loadMonthlyStats();
             
+            // Auto-refresh every 10 seconds
+            setInterval(() => {
+                loadMonthlyStats();
+                calendar.refetchEvents();
+            }, 10000);
+            
             calendar.on('datesSet', function(info) {
                 loadMonthlyStats();
             });

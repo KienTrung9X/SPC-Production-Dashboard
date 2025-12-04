@@ -1,79 +1,51 @@
-# SPC Production Dashboard - Project Structure
+# Project Structure
 
 ## Directory Organization
 
 ### Root Level
 - **server.js** - Main application server with full dashboard functionality
-- **simple-server.js** - Simplified server implementation (used as npm start entry point)
-- **config.js** - Database connection configuration
-- **run-odbc.js** - ODBC connection utilities and testing
-- **export-production.js** - Production data export functionality
+- **simple-server.js** - Simplified server version (used by npm start)
+- **config.js** - Database and application configuration
 - **package.json** - Node.js dependencies and project metadata
 
-### Core Directories
+### Core Components
+- **views/** - EJS templates for web interface
+  - `dashboard.ejs` - Full dashboard with dual-panel layout
+  - `dashboard-simple.ejs` - Simplified dashboard version
+  - `data.ejs` - Data display template
+  - `test.ejs` - Testing interface
+- **SQLcode/** - Database query modules
+  - `Production Report.js` - Production reporting queries
+  - `Bin Info.js` - Bin information queries
 
-#### `/views/` - EJS Templates
-- **dashboard.ejs** - Main production dashboard interface
-- **dashboard-simple.ejs** - Simplified dashboard layout
-- **data.ejs** - Data display template
-- **test.ejs** - Testing interface
-- **simple-test.ejs** - Basic test template
+### Deployment & Operations
+- **ecosystem.config.js** - PM2 process manager configuration
+- **logs/** - Application log files (error and output logs)
+- **setup-*.bat** - Windows batch scripts for deployment
+- **PM2-COMMANDS.bat** - PM2 management commands
 
-#### `/SQLcode/` - Database Queries
-- **Bin Info.js** - TRZ50 bin information queries
-- **Production Report.js** - Complex production reporting queries
-
-#### `/jules_session/` - Alternative Implementation
-- Complete alternate server setup with own package.json and views
-- **server.js** - Session-based server implementation
-- **views/index.ejs** - Session dashboard template
-
-#### `/output/` - Generated Files
-- Directory for exported data and generated reports
-
-## Core Components
-
-### Database Layer
-- **ODBC Connection**: Direct connection to IBM DB2 using odbc package
-- **Query Modules**: Separated SQL queries in dedicated files for maintainability
-- **Connection String**: Configurable DB2 connection with environment variable support
-
-### Web Server Layer
-- **Express.js Framework**: RESTful API endpoints and static file serving
-- **EJS Templating**: Server-side rendering for dashboard views
-- **Static Assets**: CSS, JavaScript, and icon files served from public directory
-
-### API Endpoints
-- **GET /api/trz50** - Bin information data
-- **GET /api/production** - Production report data
-- **GET /api/export/:type** - CSV export functionality
-- **GET /** - Dashboard rendering routes
+### Development Support
+- **jules_session/** - Development session with isolated server
+- **output/** - Generated output files
+- **.amazonq/rules/memory-bank/** - AI assistant memory bank
 
 ## Architectural Patterns
 
-### MVC Architecture
-- **Models**: Database queries in SQLcode directory
-- **Views**: EJS templates in views directory
-- **Controllers**: Route handlers in server files
+### Server Architecture
+- **Express.js Framework**: RESTful API with EJS templating
+- **ODBC Database Layer**: Direct connection to IBM DB2
+- **Real-time Updates**: Polling-based refresh every 15 seconds
+- **Dual Server Setup**: Main server (server.js) and simplified version (simple-server.js)
 
-### Separation of Concerns
-- Configuration isolated in config.js
-- Database queries modularized in separate files
-- Multiple server implementations for different use cases
+### Data Flow
+1. **Database Queries**: ODBC connection to IBM DB2
+2. **API Endpoints**: `/api/new_orders` and `/api/completed_status`
+3. **Frontend Polling**: JavaScript auto-refresh mechanism
+4. **Notification System**: Browser push notifications for new orders
 
-### Real-time Updates
-- Client-side polling every 15 seconds
-- Browser notification API integration
-- Automatic data refresh without page reload
-
-## Component Relationships
-```
-server.js
-├── config.js (database configuration)
-├── SQLcode/
-│   ├── Bin Info.js (TRZ50 queries)
-│   └── Production Report.js (production queries)
-└── views/
-    ├── dashboard.ejs (main interface)
-    └── other templates
-```
+### Component Relationships
+- **Configuration Layer**: config.js provides database connection strings
+- **Query Layer**: SQLcode modules handle database operations
+- **Server Layer**: Express servers handle HTTP requests and API endpoints
+- **View Layer**: EJS templates render dashboard interface
+- **Process Management**: PM2 handles server lifecycle and monitoring

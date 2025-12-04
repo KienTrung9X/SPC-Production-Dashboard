@@ -334,11 +334,28 @@ app.get('/api/download-csv', async (req, res) => {
 const connStr = `DRIVER={IBM i Access ODBC Driver};SYSTEM=${config.hostname};UID=${config.uid};PWD=${config.pwd};DBQ=WAVEDLIB;`;
 
 async function executeQuery(sql, params) {
-    const connection = await odbc.connect(connStr);
-    try {
-        return await connection.query(sql, params);
-    } finally {
-        await connection.close();
+    let connection;
+    let retries = 3;
+    
+    while (retries > 0) {
+        try {
+            connection = await odbc.connect(connStr);
+            const result = await connection.query(sql, params);
+            return result;
+        } catch (error) {
+            console.error(`Database error (${retries} retries left):`, error.message);
+            retries--;
+            if (retries === 0) throw error;
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        } finally {
+            if (connection) {
+                try {
+                    await connection.close();
+                } catch (closeError) {
+                    console.error('Error closing connection:', closeError.message);
+                }
+            }
+        }
     }
 }
 
